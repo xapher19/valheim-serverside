@@ -40,6 +40,13 @@ jobs:
         msbuild src/Valheim_Serverside/Serverside_Simulations.csproj /restore /p:Configuration=Release "/p:SolutionDir=$env:GITHUB_WORKSPACE/" "/p:VALHEIM_DEDI_INSTALL=$env:GITHUB_WORKSPACE/serverfiles"
         if ($LASTEXITCODE -ne 0) { throw "Plugin build failed" }
 
+    - name: Real game FPS patch smoke test
+      run: |
+        dotnet build tests/GamePatchSmoke/GamePatchSmoke.csproj -c Release
+        if ($LASTEXITCODE -ne 0) { throw "Patch smoke-test build failed" }
+        & ./tests/GamePatchSmoke/bin/Release/net472/GamePatchSmoke.exe serverfiles bin/Release/SarkasticEU_Dedicated_Simulation.dll
+        if ($LASTEXITCODE -ne 0) { throw "Real game FPS patch installation failed" }
+
     - name: Upload DLL
       uses: actions/upload-artifact@v4.6.2
       with:

@@ -1,3 +1,9 @@
+## 1.9.1 (xapher19)
+
+- Bind the FPS request prefix by argument index to support Valheim 1.0.15's parameter names.
+- Check real Harmony installation against the downloaded game method in the DLL build, with the old binding as a negative control.
+- Identify the custom build as plugin/file version 1.9.1 and informational version 1.9.1-xapher19.
+
 ## [1.9.0] - 2026-09-12
 
 ### Fixed

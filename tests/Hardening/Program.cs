@@ -83,6 +83,21 @@ static class Program
         Check(Application.targetFrameRate == 30, "FPS fallback ran after Core failed");
 #endif
         ServersidePlugin.logger = new BepInEx.Logging.ManualLogSource();
+        var prefix = typeof(Performance.PresentManager_RequestTargetFrameRate_Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic);
+        Check(prefix.GetParameters()[0].Name == "__0", "FPS prefix must bind by argument index");
+        Configuration.serverTargetFps.Value = 60;
+        ZNet.Dedicated = true;
+        object[] request = { 30 };
+        prefix.Invoke(null, request);
+        Check((int)request[0] == 60, "FPS prefix did not override the first argument");
+        ZNet.Dedicated = false;
+        request[0] = 30;
+        prefix.Invoke(null, request);
+        Check((int)request[0] == 30, "FPS prefix changed a client request");
+        ZNet.Dedicated = true;
+        Configuration.serverTargetFps.Value = 0;
+        prefix.Invoke(null, request);
+        Check((int)request[0] == 30, "Disabled FPS prefix changed the request");
         Configuration.serverTargetFps.Value = 60;
         ZNet.Dedicated = true;
         Application.targetFrameRate = 30;
