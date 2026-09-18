@@ -107,6 +107,29 @@ If your mod changes the simulation or behaviour of the world, it has to be able 
 - On a dedicated server, `ZNet.instance.GetReferencePosition()` returns a position outside of the world, unrelated to any player.
 - Graphics or HUD code should be behind a `ZNet.instance.IsDedicated()` check if it can run on the server.
 
+## Patch health and FPS verification
+
+Startup logs report each Core and Performance hook as `ACTIVE` after checking its
+Harmony registration. Core remains atomic: any failed or missing Core hook rolls
+back all simulation patches and prevents the Performance/FPS update loop starting.
+Each optional Performance hook has a separate Harmony owner, so a failed profiler
+or scheduler only removes that hook. Missing send/game-logic timing is reported as
+`unavailable` rather than zero activity. Other missing profiling sections contribute
+to the report's `unaccounted` time; consult startup health before interpreting it.
+Registration confirms installation, not that a game method has executed.
+
+On dedicated servers, five seconds after installation the plugin checks
+`Application.targetFrameRate` against `ServerTargetFps` (clamped to 30–240). If they
+differ, it warns and applies one direct fallback, then checks again ten seconds
+later. Further overrides warn without repeated writes; changing the configured
+value permits a new fallback attempt. A value at or below zero leaves the game's
+target alone. Verification checks the requested frame cap, not achieved FPS under
+load; periodic performance reports still show actual throughput.
+
+These changes are server-only and add no client requirements or network protocol
+changes. See [hardening regression checks](tests/Hardening/README.md) for automated
+checks and the dedicated-server smoke test, including vanilla/PS5 clients.
+
 ## Building
 
 Create `src/Environment.props` pointing at a Valheim dedicated server install that has BepInEx:

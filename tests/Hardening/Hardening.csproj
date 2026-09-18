@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Stubs.cs" />
+    <Compile Include="../../src/Valheim_Serverside/Patching.cs" />
+    <Compile Include="../../src/Valheim_Serverside/FeaturesLib.cs" />
+    <Compile Include="../../src/Valheim_Serverside/ServersidePlugin.cs" />
+    <Compile Include="../../src/Valheim_Serverside/Features/Performance.cs" />
+    <Compile Include="../../src/Valheim_Serverside/Features/TargetFpsVerifier.cs" />
+  </ItemGroup>
+  <!-- Compile against the bundled Harmony API too; execution uses fault-injection doubles. -->
+  <ItemGroup Condition="'RealHarmony' == 'true'">
+    <Reference Include="0Harmony"><HintPath>../../lib/BepInEx/core/0Harmony.dll</HintPath></Reference>
+  </ItemGroup>
+  <PropertyGroup Condition="'RealHarmony' != 'true'">
+    <DefineConstants>$(DefineConstants);FAKE_HARMONY</DefineConstants>
+  </PropertyGroup>
+</Project>
