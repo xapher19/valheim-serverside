@@ -20,6 +20,9 @@ Unity, network transport or rendered client cleanup.
 and player receive hooks against the actual downloaded game methods using Harmony under Mono. Mono is used
 because the game interfaces contain default method bodies that desktop .NET
 Framework cannot load.
+The harness substitutes animation-name hashing during Player static initialization;
+the actual Unity native hashing service is unavailable outside the engine. No
+gameplay methods are executed and this substitute is not part of the shipped DLL.
 The complete build runs on PRs and main, including the existing FPS checks.
 
 ## Live acceptance checks

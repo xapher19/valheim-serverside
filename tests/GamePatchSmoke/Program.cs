@@ -11,6 +11,19 @@ internal static class Program
 {
     private static void BadPrefix(ref int value) { }
 
+    // Player's static initialization requests animation IDs while Harmony compiles
+    // Ship.UpdateOwner. Unity supplies this native service only inside the engine.
+    // IDs are unused in this installation-only test; provide deterministic stand-ins.
+    private static bool AnimationHash(string __0, ref int __result)
+    {
+        unchecked
+        {
+            __result = 17;
+            foreach (char c in __0) __result = __result * 31 + c;
+        }
+        return false;
+    }
+
     private static void CheckHook(Assembly game, Assembly plugin, string targetType, string method, string patchName, bool prefix)
     {
         var target = AccessTools.Method(game.GetType(targetType, true), method);
@@ -77,8 +90,16 @@ internal static class Program
                 Console.WriteLine("PASS: built plugin FPS hook installs on the real Valheim method.");
             }
             finally { owner.UnpatchSelf(); }
-            CheckHook(game, plugin, "Ship", "UpdateOwner", "Ship_UpdateOwner_Patch", true);
-            CheckHook(game, plugin, "ZDOMan", "RPC_ZDOData", "ZDOMan_RPC_ZDOData_PlayerDeparture_Patch", false);
+            var engineShim = new Harmony("xapher19.tests.animation-native-shim");
+            var animation = Assembly.LoadFrom(Path.Combine(managed, "UnityEngine.AnimationModule.dll"));
+            var hash = AccessTools.Method(animation.GetType("UnityEngine.Animator", true), "StringToHash", new[] { typeof(string) });
+            try
+            {
+                engineShim.Patch(hash, prefix: new HarmonyMethod(typeof(Program).GetMethod("AnimationHash", BindingFlags.Static | BindingFlags.NonPublic)));
+                CheckHook(game, plugin, "Ship", "UpdateOwner", "Ship_UpdateOwner_Patch", true);
+                CheckHook(game, plugin, "ZDOMan", "RPC_ZDOData", "ZDOMan_RPC_ZDOData_PlayerDeparture_Patch", false);
+            }
+            finally { engineShim.UnpatchSelf(); }
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
