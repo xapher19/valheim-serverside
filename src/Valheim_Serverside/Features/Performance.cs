@@ -108,7 +108,8 @@ namespace Valheim_Serverside.Features
 		{
 			private static int s_logged;
 
-			static void Prefix(ref int value)
+			// Bind by index so game parameter renames cannot break Harmony injection.
+			static void Prefix(ref int __0)
 			{
 				int fps = Configuration.serverTargetFps.Value;
 				// Called before ZNet exists (GraphicsSettingsManager.Awake), so the plugin's own check is used.
@@ -117,11 +118,11 @@ namespace Valheim_Serverside.Features
 					return;
 				}
 				int wanted = Mathf.Clamp(fps, 30, 240);
-				if (s_logged++ == 0 || wanted != value)
+				if (s_logged++ == 0 || wanted != __0)
 				{
-					ServersidePlugin.logger.LogInfo($"Server target frame rate: {value} -> {wanted}");
+					ServersidePlugin.logger.LogInfo($"Server target frame rate: {__0} -> {wanted}");
 				}
-				value = wanted;
+				__0 = wanted;
 			}
 		}
 
