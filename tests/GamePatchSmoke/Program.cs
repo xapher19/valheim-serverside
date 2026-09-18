@@ -10,6 +10,24 @@ internal static class Program
 {
     private static void BadPrefix(ref int value) { }
 
+    private static void CheckHook(Assembly game, Assembly plugin, string targetType, string method, string patchName, bool prefix)
+    {
+        var target = AccessTools.Method(game.GetType(targetType, true), method);
+        if (target == null) throw new Exception("Missing game method " + targetType + "." + method);
+        var hook = plugin.GetType("Valheim_Serverside.Features.Core+" + patchName, true);
+        var owner = new Harmony("xapher19.tests." + patchName);
+        try
+        {
+            new PatchClassProcessor(owner, hook).Patch();
+            var info = Harmony.GetPatchInfo(target);
+            var patches = prefix ? info?.Prefixes : info?.Postfixes;
+            if (patches == null || !patches.Any(p => p.owner == owner.Id && p.PatchMethod.DeclaringType == hook))
+                throw new Exception("Hook not registered: " + patchName);
+            Console.WriteLine("PASS: built plugin hook installs on real game method: " + targetType + "." + method);
+        }
+        finally { owner.UnpatchSelf(); }
+    }
+
     private static int Main(string[] args)
     {
         try
@@ -58,6 +76,8 @@ internal static class Program
                 Console.WriteLine("PASS: built plugin FPS hook installs on the real Valheim method.");
             }
             finally { owner.UnpatchSelf(); }
+            CheckHook(game, plugin, "Ship", "UpdateOwner", "Ship_UpdateOwner_Patch", true);
+            CheckHook(game, plugin, "ZDOMan", "RPC_ZDOData", "ZDOMan_RPC_ZDOData_PlayerDeparture_Patch", false);
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }

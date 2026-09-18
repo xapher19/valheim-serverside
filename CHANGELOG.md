@@ -1,3 +1,10 @@
+## 1.9.2 (xapher19)
+
+- Keep an eligible nearby client as an idle ship's owner, with driver priority, cargo protection and server fallback when players disconnect or leave range.
+- Reset water-impact protection only when ownership actually changes to the server.
+- Recheck player-sector invalidation after received player data is applied, so observers at a portal entrance receive the existing removal notification after the player leaves.
+- Add world synchronisation regression checks and real-game ship/receive-hook installation tests. Run the full build on pull requests as well as main.
+
 ## 1.9.1 (xapher19)
 
 - Bind the FPS request prefix by argument index to support Valheim 1.0.15's parameter names.

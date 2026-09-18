@@ -113,6 +113,8 @@
     <Compile Include="FeaturesLib.cs" />
     <Compile Include="Features\Debugging.cs" />
     <Compile Include="ServerSafe.cs" />
+    <Compile Include="ShipOwnership.cs" />
+    <Compile Include="PlayerDepartureSync.cs" />
     <Compile Include="ServerConsole.cs" />
     <Compile Include="VanillaDrift.cs" />
     <Compile Include="Configuration.cs" />

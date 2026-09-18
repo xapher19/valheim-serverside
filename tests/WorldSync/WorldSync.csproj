@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/Valheim_Serverside/ShipOwnership.cs" Link="ShipOwnership.cs" />
+    <Compile Include="../../src/Valheim_Serverside/PlayerDepartureSync.cs" Link="PlayerDepartureSync.cs" />
+  </ItemGroup>
+</Project>

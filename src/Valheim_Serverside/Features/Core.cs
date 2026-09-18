@@ -664,45 +664,22 @@ namespace Valheim_Serverside.Features
 
 		[HarmonyPatch(typeof(Ship), "UpdateOwner")]
 		public static class Ship_UpdateOwner_Patch
-		/*
-			This method is invoked on a 4 second timer. 
-
-			Keep the Ship owner set to the Ship's driver.
-
-			If the Ship has no valid user, set the owner to the server
-			to ensure simulations are handled by the server.
-
-			Only change ownership when the Ship's container is not in use,
-			to prevent them from being kicked out of said container.
-
-			Prevent boat from taking impact damage from out of sync water 
-			levels when taking ownership.
-		*/
 		{
-			static bool Prefix(ref Ship __instance)
+			// Vanilla invokes this every two seconds. Keep client simulation while a
+			// suitable player is nearby, with driver priority and cargo-use protection.
+			static bool Prefix(Ship __instance)
 			{
-				ZDO zdo = __instance.m_nview.GetZDO();
-				// Don't do anything if a player is using ship's container
-				if (zdo.GetInt("InUse", 0) == 0)
-				{
-					if (!__instance.m_shipControlls.HaveValidUser())
-					{
-						__instance.m_lastWaterImpactTime = Time.time;
-						zdo.SetOwner(ZNet.GetUID());
-						return false;
-					}
-					long driver = __instance.m_shipControlls.GetUser();
-					// The driver's Player can be missing on the server for a moment (not instantiated
-					// yet, or just left); keep the current owner until it shows up.
-					Player driverPlayer = driver != 0L ? Player.GetPlayer(driver) : null;
-					if (driverPlayer != null)
-					{
-						long driverID = driverPlayer.GetOwner();
-						ServersidePlugin.logger.LogDebug($"UpdateOwner: Setting ship's owner to {driverID}");
-						zdo.SetOwner(driverID);
-					}
-				}
+				ShipOwnership.Update(__instance);
 				return false;
+			}
+		}
+
+		[HarmonyPatch(typeof(ZDOMan), "RPC_ZDOData")]
+		public static class ZDOMan_RPC_ZDOData_PlayerDeparture_Patch
+		{
+			static void Postfix(ZDOMan __instance, ZRpc __0)
+			{
+				PlayerDepartureSync.AfterReceive(__instance, __0);
 			}
 		}
 
