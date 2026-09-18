@@ -4,7 +4,8 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 
-// Runs on the Windows build host against the real downloaded game and built plugin.
+// Runs under Mono on the Windows build host against the downloaded game and built plugin.
+// Ship implements game interfaces with default methods; desktop .NET Framework cannot load it.
 // Installs detours but never invokes the game method (which needs the Unity runtime).
 internal static class Program
 {

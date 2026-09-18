@@ -17,7 +17,9 @@ reassigned. These tests model the native invalidation contract; they do not run
 Unity, network transport or rendered client cleanup.
 
 `tests/GamePatchSmoke` independently installs the compiled plugin's ship ownership
-and player receive hooks against the actual downloaded game methods using Harmony.
+and player receive hooks against the actual downloaded game methods using Harmony under Mono. Mono is used
+because the game interfaces contain default method bodies that desktop .NET
+Framework cannot load.
 The complete build runs on PRs and main, including the existing FPS checks.
 
 ## Live acceptance checks
