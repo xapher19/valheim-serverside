@@ -85,6 +85,7 @@ namespace Valheim_Serverside
 
 			VanillaDrift.Check(Logger);
 			installed = true;
+			Features.TargetFpsVerifier.Start(Time.realtimeSinceStartupAsDouble);
 			Logger.LogInfo($"{PluginName} installed");
 		}
 
@@ -99,6 +100,7 @@ namespace Valheim_Serverside
 			}
 			if (installed)
 			{
+				Features.TargetFpsVerifier.Tick(Time.realtimeSinceStartupAsDouble);
 				Features.PerformanceStats.Frame();
 				if (Configuration.adminChatEnabled.Value)
 				{
@@ -155,18 +157,47 @@ namespace Valheim_Serverside
 			cleanly. A patch that fails usually means the game changed under it. Half of Core is
 			worse than none -- e.g. objects created around players while zones are not -- so a
 			Core failure removes every patch and leaves the server vanilla. Any other feature is
-			just switched off.
+			just switched off. Performance alone uses one owner per optional hook.
 		*/
 		private bool PatchFeatures(AvailableFeatures availableFeatures, HarmonyFeaturesPatcher patcher)
 		{
+			Features.Performance.ClearHookHealth();
 			List<Harmony> applied = new List<Harmony>();
 			foreach (IFeature feature in availableFeatures.EnabledFeatures())
 			{
 				string featureName = feature.GetType().Name;
+				if (feature is Features.Performance)
+				{
+					foreach (Type hook in feature.GetType().GetNestedTypes())
+					{
+						Harmony hookHarmony = new Harmony($"{PluginGUID}.Performance.{hook.Name}");
+						try
+						{
+							patcher.PatchAll(new[] { hook }, hookHarmony, verify: true);
+							applied.Add(hookHarmony);
+							Features.Performance.SetHookHealth(hook, true);
+							Logger.LogInfo($"Patch health: Performance.{hook.Name} ACTIVE (Harmony registration verified)");
+						}
+						catch (Exception e)
+						{
+							hookHarmony.UnpatchSelf();
+							Features.Performance.SetHookHealth(hook, false);
+							Logger.LogWarning($"Patch health: Performance.{hook.Name} FAILED; only this hook was removed. {e}");
+						}
+					}
+					continue;
+				}
 				Harmony featureHarmony = new Harmony($"{PluginGUID}.{featureName}");
 				try
 				{
-					patcher.PatchAll(feature.GetType().GetNestedTypes(), featureHarmony);
+					patcher.PatchAll(feature.GetType().GetNestedTypes(), featureHarmony, verify: feature is Features.Core);
+					if (feature is Features.Core)
+					{
+						foreach (Type hook in feature.GetType().GetNestedTypes())
+						{
+							Logger.LogInfo($"Patch health: Core.{hook.Name} ACTIVE (Harmony registration verified)");
+						}
+					}
 					applied.Add(featureHarmony);
 				}
 				catch (Exception e)
@@ -180,10 +211,16 @@ namespace Valheim_Serverside
 							instance.UnpatchSelf();
 						}
 						harmony.UnpatchSelf();
+						Features.Performance.ClearHookHealth();
+						Logger.LogError("Patch health: Core FAILED; all simulation patches rolled back. Performance and FPS verification will not start.");
 						return false;
 					}
 					Logger.LogError($"Feature {featureName} failed to apply and is disabled. {e}");
 				}
+			}
+			if (!new Features.Performance().FeatureEnabled())
+			{
+				Logger.LogInfo("Patch health: Performance DISABLED (configuration)");
 			}
 			return true;
 		}

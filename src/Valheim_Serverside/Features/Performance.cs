@@ -19,6 +19,18 @@ namespace Valheim_Serverside.Features
 	*/
 	public class Performance : IFeature
 	{
+		private static readonly HashSet<Type> activeHooks = new HashSet<Type>();
+
+		internal static void SetHookHealth(Type hook, bool active)
+		{
+			if (active) activeHooks.Add(hook);
+			else activeHooks.Remove(hook);
+		}
+
+		internal static void ClearHookHealth() => activeHooks.Clear();
+
+		internal static bool HookActive(Type hook) => activeHooks.Contains(hook);
+
 		public bool FeatureEnabled()
 		{
 			return Configuration.sendIntervalMs.Value > 0 || Configuration.performanceStatsMinutes.Value > 0 || Configuration.serverTargetFps.Value > 0;
@@ -352,11 +364,18 @@ namespace Valheim_Serverside.Features
 			int players = ZNet.instance ? ZNet.instance.GetPeers().Count : 0;
 			if (s_frames > 0 && players > 0)
 			{
+				string fixedTiming = Performance.HookActive(typeof(Performance.MonoUpdaters_FixedUpdate_Timing))
+					? $"their game logic {100 * s_fixedSum / period:0.0}% of the time, worst frame {1000 * s_fixedMax:0} ms; "
+					: "game logic timing unavailable (hook not active); ";
+				string sendTiming = Performance.HookActive(typeof(Performance.ZDOMan_SendZDOs_Timing))
+					? $"world sends {s_sends} ({s_sends / period:0.#}/s), avg {(s_sends > 0 ? 1000 * s_sendSum / s_sends : 0):0.0} ms, worst {1000 * s_sendMax:0.0} ms, {100 * s_sendSum / period:0.0}% of the time; "
+					: "world send timing unavailable (hook not active); ";
 				ServersidePlugin.logger.LogInfo(
 					$"Performance over {period / 60:0.#} min, {players} player(s): "
 					+ $"{s_frames / period:0.#} FPS, frame avg {1000 * s_frameSum / s_frames:0} ms, median {Percentile(0.5)}, 95% {Percentile(0.95)}, 99% {Percentile(0.99)}, worst {1000 * s_frameMax:0} ms, {s_slowFrames} over {1000 * SlowFrameSeconds:0} ms; "
-					+ $"fixed steps per frame avg {(double)s_stepSum / s_frames:0.0}, max {s_stepMax}, their game logic {100 * s_fixedSum / period:0.0}% of the time, worst frame {1000 * s_fixedMax:0} ms; "
-					+ $"world sends {s_sends} ({s_sends / period:0.#}/s), avg {(s_sends > 0 ? 1000 * s_sendSum / s_sends : 0):0.0} ms, worst {1000 * s_sendMax:0.0} ms, {100 * s_sendSum / period:0.0}% of the time; "
+					+ $"fixed steps per frame avg {(double)s_stepSum / s_frames:0.0}, max {s_stepMax}; "
+					+ fixedTiming
+					+ sendTiming
 					+ $"zones generated {s_localZones} (+{s_ghostZones} ghost), {1000 * s_zoneSum:0} ms in all, worst tick {1000 * s_zoneMax:0} ms. "
 					+ WorstFrame());
 			}

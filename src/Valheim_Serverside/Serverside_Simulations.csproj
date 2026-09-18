@@ -105,6 +105,7 @@
     <Compile Include="Features\MaxObjectsPerFrame.cs" />
     <Compile Include="Features\Networking.cs" />
     <Compile Include="Features\Performance.cs" />
+    <Compile Include="Features\TargetFpsVerifier.cs" />
     <Compile Include="Features\AdminChat.cs" />
     <Compile Include="AdminCommands.cs" />
     <Compile Include="Features\Fixes.cs" />
