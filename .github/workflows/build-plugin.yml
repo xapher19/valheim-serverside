@@ -47,9 +47,15 @@ jobs:
 
     - name: Install Mono for game patch smoke tests
       run: |
-        Invoke-WebRequest https://download.mono-project.com/archive/6.12.0/windows-installer/mono-6.12.0.206-x64-0.msi -OutFile "$env:RUNNER_TEMP/mono.msi"
-        $install = Start-Process msiexec.exe -ArgumentList '/i', "$env:RUNNER_TEMP/mono.msi", '/qn', '/norestart' -Wait -PassThru
-        if ($install.ExitCode -notin @(0, 3010)) { throw "Mono install failed: $($install.ExitCode)" }
+        $installer = Join-Path $env:RUNNER_TEMP 'mono.msi'
+        $installLog = Join-Path $env:RUNNER_TEMP 'mono-install.log'
+        Invoke-WebRequest https://download.mono-project.com/archive/6.12.0/windows-installer/mono-6.12.0.206-x64-0.msi -OutFile $installer
+        Get-Item $installer | Select-Object FullName, Length
+        $install = Start-Process msiexec.exe -ArgumentList "/i `"$installer`" /qn /norestart /L*v `"$installLog`"" -Wait -PassThru
+        if ($install.ExitCode -notin @(0, 3010)) {
+          if (Test-Path $installLog) { Get-Content $installLog -Tail 60 }
+          throw "Mono install failed: $($install.ExitCode)"
+        }
         & "$env:ProgramFiles/Mono/bin/mono.exe" --version
         if ($LASTEXITCODE -ne 0) { throw "Mono runtime missing" }
 
