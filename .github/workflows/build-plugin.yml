@@ -5,51 +5,44 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-#  workflow_dispatch:
-#    inputs:
-#      build_configuration:
-#        description: 'Build configuration'
-#        default: 'Release'
+permissions:
+  contents: read
 
 jobs:
   build-dll:
     runs-on: windows-2025
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
     - uses: actions/checkout@v5.0.0
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
     - uses: microsoft/setup-msbuild@v1.0.2
-    - name: Install DepotDownloader and download Valheim files
-      run: |
-        winget install --exact --id SteamRE.DepotDownloader --disable-interactivity --accept-source-agreements --accept-package-agreements
-        $depot = Get-ChildItem -Path $env:LOCALAPPDATA/Microsoft/WinGet -Recurse -Filter "DepotDownloader.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-        & $depot.FullName -app 896660 -os windows -filelist .depot-downloader-file-list.txt -dir serverfiles
 
-    - name: build
+    - name: Hardening regression checks
+      run: dotnet run --project tests/Hardening/Hardening.csproj
+
+    - name: Download Valheim server assemblies
       env:
-        VALHEIM_DEDI_INSTALL: ../../serverfiles
+        GH_TOKEN: ${{ github.token }}
       run: |
-        xcopy /E /I lib\* serverfiles\
-        msbuild /t:Restore,Build -p:Configuration=Release
-        
-    - name: upload
+        gh release download DepotDownloader_3.4.0 --repo SteamRE/DepotDownloader --pattern DepotDownloader-windows-x64.zip --dir depot
+        if ($LASTEXITCODE -ne 0) { throw "DepotDownloader download failed" }
+        Expand-Archive depot/DepotDownloader-windows-x64.zip -DestinationPath depot/tool
+        & ./depot/tool/DepotDownloader.exe -app 896660 -os windows -filelist .depot-downloader-file-list.txt -dir serverfiles
+        if ($LASTEXITCODE -ne 0) { throw "Valheim server assembly download failed" }
+        if (!(Test-Path serverfiles/valheim_server_Data/Managed/assembly_valheim.dll)) { throw "Valheim assembly missing" }
+
+    - name: Build release DLL
+      run: |
+        Copy-Item lib/* serverfiles/ -Recurse -Force
+        msbuild src/Valheim_Serverside/Serverside_Simulations.csproj /restore /p:Configuration=Release "/p:SolutionDir=$env:GITHUB_WORKSPACE/" "/p:VALHEIM_DEDI_INSTALL=$env:GITHUB_WORKSPACE/serverfiles"
+        if ($LASTEXITCODE -ne 0) { throw "Plugin build failed" }
+
+    - name: Upload DLL
       uses: actions/upload-artifact@v4.6.2
       with:
-        name: serverside-simulations-${{ github.sha }}
-        path: bin\Release\Serverside_Simulations.dll
-  
-  thunderstore-package:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [build-dll]
-    steps:
-    - uses: actions/checkout@v5.0.0
-    - uses: actions/download-artifact@v5.0.0
-    - name: Build Thunderstore Package
-      run: |
-        ls $GITHUB_WORKSPACE
-        bin/thunderstore-package.sh
-    - uses: actions/upload-artifact@v4.6.2
-      with:
-        name: thunderstore-package-${{ github.sha }}.zip
-        path: thunderstore-package.zip 
+        name: dedicated-simulation-${{ github.sha }}
+        path: bin/Release/SarkasticEU_Dedicated_Simulation.dll
+        if-no-files-found: error
