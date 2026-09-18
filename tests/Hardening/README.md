@@ -35,7 +35,7 @@ README. Before deployment, run a dedicated test server and check:
 5. Join with an unmodified PC/PS5 client; check movement, combat, object interaction
    and world saving. No client mod, RPC/payload change or new handshake is added.
 
-The build workflow also runs `tests/GamePatchSmoke` on Windows/.NET Framework
+The build workflow also runs `tests/GamePatchSmoke` under Mono on Windows
 against the downloaded Valheim assemblies and compiled plugin. It checks that the
 old `value` binding is rejected, then installs the actual plugin FPS patch with
 Harmony and verifies its registration. It does not invoke the game method or

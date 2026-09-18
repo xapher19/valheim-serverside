@@ -14,7 +14,7 @@ With this mod the server owns and simulates those areas:
 
 - Each player depends only on their own connection to the server, not on someone else's.
 - Clients no longer run AI and physics for the areas they would have owned, which helps slower PCs.
-- Ships are handed to their driver, so steering has no round trip.
+- Ships are handed to their driver, so steering has no round trip. Releasing the helm retains a suitable nearby client as owner; unattended ships fall back to the server when no eligible client remains.
 
 What it costs:
 
@@ -129,6 +129,31 @@ load; periodic performance reports still show actual throughput.
 These changes are server-only and add no client requirements or network protocol
 changes. See [hardening regression checks](tests/Hardening/README.md) for automated
 checks and the dedicated-server smoke test, including vanilla/PS5 clients.
+
+## Ship ownership and portal departures (1.9.2)
+
+Idle ships prefer an eligible existing client owner, then a passenger, then the
+nearest eligible peer. Drivers take priority unless cargo is in use. Eligibility
+requires a connected, ready player with the ship in their active simulation area.
+Disconnected or out-of-range owners are replaced; the server remains the fallback.
+The server handoff resets water-impact protection once, rather than every idle
+tick. Normal water-impact damage is therefore no longer continually suppressed.
+
+This addresses a plausible cause of idle boats disagreeing with client-visible
+waves: the dedicated server's camera-dependent environment need not match the
+players' weather. It does not change buoyancy coefficients, global weather, send
+rates or client interpolation, and it is not a promise of exact wave alignment.
+
+After a player's incoming world-data packet, the server rechecks the accepted
+character position against observers' areas. In the inspected 1.0.15 code, the
+original sector callback runs before the new position is stored and can miss a
+portal departure. The recheck uses vanilla sector invalidation and send budgets;
+it does not destroy the player's world object, change ownership, or add a client
+RPC. Returning players can receive normal fresh updates after the cache is cleared.
+
+The build checks both new hooks against the downloaded game. See the
+[world synchronisation tests](tests/WorldSync/README.md) for regression coverage and
+the live PC/PS5 test procedure. Both hooks are in Core's atomic patch group.
 
 ## Building
 

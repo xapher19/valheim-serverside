@@ -4,11 +4,43 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 
-// Runs on the Windows build host against the real downloaded game and built plugin.
+// Runs under Mono on the Windows build host against the downloaded game and built plugin.
+// Ship implements game interfaces with default methods; desktop .NET Framework cannot load it.
 // Installs detours but never invokes the game method (which needs the Unity runtime).
 internal static class Program
 {
     private static void BadPrefix(ref int value) { }
+
+    // Player's static initialization requests animation IDs while Harmony compiles
+    // Ship.UpdateOwner. Unity supplies this native service only inside the engine.
+    // IDs are unused in this installation-only test; provide deterministic stand-ins.
+    private static bool AnimationHash(string __0, ref int __result)
+    {
+        unchecked
+        {
+            __result = 17;
+            foreach (char c in __0) __result = __result * 31 + c;
+        }
+        return false;
+    }
+
+    private static void CheckHook(Assembly game, Assembly plugin, string targetType, string method, string patchName, bool prefix)
+    {
+        var target = AccessTools.Method(game.GetType(targetType, true), method);
+        if (target == null) throw new Exception("Missing game method " + targetType + "." + method);
+        var hook = plugin.GetType("Valheim_Serverside.Features.Core+" + patchName, true);
+        var owner = new Harmony("xapher19.tests." + patchName);
+        try
+        {
+            new PatchClassProcessor(owner, hook).Patch();
+            var info = Harmony.GetPatchInfo(target);
+            var patches = prefix ? info?.Prefixes : info?.Postfixes;
+            if (patches == null || !patches.Any(p => p.owner == owner.Id && p.PatchMethod.DeclaringType == hook))
+                throw new Exception("Hook not registered: " + patchName);
+            Console.WriteLine("PASS: built plugin hook installs on real game method: " + targetType + "." + method);
+        }
+        finally { owner.UnpatchSelf(); }
+    }
 
     private static int Main(string[] args)
     {
@@ -58,6 +90,16 @@ internal static class Program
                 Console.WriteLine("PASS: built plugin FPS hook installs on the real Valheim method.");
             }
             finally { owner.UnpatchSelf(); }
+            var engineShim = new Harmony("xapher19.tests.animation-native-shim");
+            var animation = Assembly.LoadFrom(Path.Combine(managed, "UnityEngine.AnimationModule.dll"));
+            var hash = AccessTools.Method(animation.GetType("UnityEngine.Animator", true), "StringToHash", new[] { typeof(string) });
+            try
+            {
+                engineShim.Patch(hash, prefix: new HarmonyMethod(typeof(Program).GetMethod("AnimationHash", BindingFlags.Static | BindingFlags.NonPublic)));
+                CheckHook(game, plugin, "Ship", "UpdateOwner", "Ship_UpdateOwner_Patch", true);
+                CheckHook(game, plugin, "ZDOMan", "RPC_ZDOData", "ZDOMan_RPC_ZDOData_PlayerDeparture_Patch", false);
+            }
+            finally { engineShim.UnpatchSelf(); }
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }

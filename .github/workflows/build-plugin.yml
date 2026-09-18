@@ -3,6 +3,8 @@ name: Build Plugin
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +25,9 @@ jobs:
     - name: Hardening regression checks
       run: dotnet run --project tests/Hardening/Hardening.csproj
 
+    - name: World synchronisation regression checks
+      run: dotnet run --project tests/WorldSync/WorldSync.csproj
+
     - name: Download Valheim server assemblies
       env:
         GH_TOKEN: ${{ github.token }}
@@ -40,12 +45,26 @@ jobs:
         msbuild src/Valheim_Serverside/Serverside_Simulations.csproj /restore /p:Configuration=Release "/p:SolutionDir=$env:GITHUB_WORKSPACE/" "/p:VALHEIM_DEDI_INSTALL=$env:GITHUB_WORKSPACE/serverfiles"
         if ($LASTEXITCODE -ne 0) { throw "Plugin build failed" }
 
-    - name: Real game FPS patch smoke test
+    - name: Install Mono for game patch smoke tests
+      run: |
+        $installer = Join-Path $env:RUNNER_TEMP 'mono.msi'
+        $installLog = Join-Path $env:RUNNER_TEMP 'mono-install.log'
+        Invoke-WebRequest https://download.mono-project.com/archive/6.12.0/windows-installer/mono-6.12.0.206-x64-0.msi -OutFile $installer
+        Get-Item $installer | Select-Object FullName, Length
+        $install = Start-Process msiexec.exe -ArgumentList "/i `"$installer`" /qn /norestart /L*v `"$installLog`"" -Wait -PassThru
+        if ($install.ExitCode -notin @(0, 3010)) {
+          if (Test-Path $installLog) { Get-Content $installLog -Tail 60 }
+          throw "Mono install failed: $($install.ExitCode)"
+        }
+        & "$env:ProgramFiles/Mono/bin/mono.exe" --version
+        if ($LASTEXITCODE -ne 0) { throw "Mono runtime missing" }
+
+    - name: Real game patch smoke tests
       run: |
         dotnet build tests/GamePatchSmoke/GamePatchSmoke.csproj -c Release
         if ($LASTEXITCODE -ne 0) { throw "Patch smoke-test build failed" }
-        & ./tests/GamePatchSmoke/bin/Release/net472/GamePatchSmoke.exe serverfiles bin/Release/SarkasticEU_Dedicated_Simulation.dll
-        if ($LASTEXITCODE -ne 0) { throw "Real game FPS patch installation failed" }
+        & "$env:ProgramFiles/Mono/bin/mono.exe" ./tests/GamePatchSmoke/bin/Release/net472/GamePatchSmoke.exe serverfiles bin/Release/SarkasticEU_Dedicated_Simulation.dll
+        if ($LASTEXITCODE -ne 0) { throw "Real game patch installation failed" }
 
     - name: Upload DLL
       uses: actions/upload-artifact@v4.6.2
