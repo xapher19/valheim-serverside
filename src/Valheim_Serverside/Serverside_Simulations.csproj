@@ -116,6 +116,9 @@
     <Compile Include="ShipOwnership.cs" />
     <Compile Include="PlayerDepartureSync.cs" />
     <Compile Include="ServerConsole.cs" />
+    <Compile Include="DiagnosticMetrics.cs" />
+    <Compile Include="DiagnosticRuntime.cs" />
+    <Compile Include="Features\Diagnostics.cs" />
     <Compile Include="VanillaDrift.cs" />
     <Compile Include="Configuration.cs" />
     <Compile Include="SequentialInstructions.cs" />

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+<ItemGroup>
+<Compile Include="../../src/Valheim_Serverside/DiagnosticMetrics.cs" />
+<Compile Include="../../src/Valheim_Serverside/DiagnosticRuntime.cs" />
+<Compile Include="../../src/Valheim_Serverside/Features/Diagnostics.cs" />
+</ItemGroup>
+</Project>

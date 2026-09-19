@@ -24,11 +24,11 @@ internal static class Program
         return false;
     }
 
-    private static void CheckHook(Assembly game, Assembly plugin, string targetType, string method, string patchName, bool prefix)
+    private static void CheckHook(Assembly game, Assembly plugin, string targetType, string method, string patchName, bool prefix, string feature = "Core")
     {
         var target = AccessTools.Method(game.GetType(targetType, true), method);
         if (target == null) throw new Exception("Missing game method " + targetType + "." + method);
-        var hook = plugin.GetType("Valheim_Serverside.Features.Core+" + patchName, true);
+        var hook = plugin.GetType("Valheim_Serverside.Features." + feature + "+" + patchName, true);
         var owner = new Harmony("xapher19.tests." + patchName);
         try
         {
@@ -37,6 +37,8 @@ internal static class Program
             var patches = prefix ? info?.Prefixes : info?.Postfixes;
             if (patches == null || !patches.Any(p => p.owner == owner.Id && p.PatchMethod.DeclaringType == hook))
                 throw new Exception("Hook not registered: " + patchName);
+            if (feature == "Diagnostics" && !info.Postfixes.Any(p => p.owner == owner.Id && p.PatchMethod.DeclaringType == hook))
+                throw new Exception("Diagnostics postfix not registered: " + patchName);
             Console.WriteLine("PASS: built plugin hook installs on real game method: " + targetType + "." + method);
         }
         finally { owner.UnpatchSelf(); }
@@ -96,6 +98,8 @@ internal static class Program
             try
             {
                 engineShim.Patch(hash, prefix: new HarmonyMethod(typeof(Program).GetMethod("AnimationHash", BindingFlags.Static | BindingFlags.NonPublic)));
+                CheckHook(game, plugin, "ZDOMan", "SendZDOs", "SendObservation", true, "Diagnostics");
+                CheckHook(game, plugin, "ZNetView", "HandleRoutedRPC", "InteractionObservation", true, "Diagnostics");
                 CheckHook(game, plugin, "Ship", "UpdateOwner", "Ship_UpdateOwner_Patch", true);
                 CheckHook(game, plugin, "ZDOMan", "RPC_ZDOData", "ZDOMan_RPC_ZDOData_PlayerDeparture_Patch", false);
             }

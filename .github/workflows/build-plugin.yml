@@ -28,6 +28,9 @@ jobs:
     - name: World synchronisation regression checks
       run: dotnet run --project tests/WorldSync/WorldSync.csproj
 
+    - name: Diagnostics regression checks
+      run: dotnet run --project tests/Diagnostics/Diagnostics.csproj
+
     - name: Download Valheim server assemblies
       env:
         GH_TOKEN: ${{ github.token }}

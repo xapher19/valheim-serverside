@@ -36,6 +36,15 @@ static class Program
     static void Main()
     {
 #if FAKE_HARMONY
+        Reset();
+        PatchClassProcessor.Fail = typeof(Diagnostics.InteractionObservation);
+        Check(Install(new Core(), new Performance(), new Diagnostics()), "Diagnostics failure aborted installation");
+        Check(Active(typeof(Diagnostics.SendObservation)), "Interaction failure removed send observation");
+        Check(Active(typeof(Performance.PresentManager_RequestTargetFrameRate_Patch)), "Diagnostics failure removed FPS hook");
+        Reset();
+        PatchClassProcessor.Fail = typeof(Core.Second);
+        Check(!Install(new Diagnostics(), new Core()), "Core failure accepted with diagnostics");
+        Check(!Active(typeof(Diagnostics.SendObservation)), "Core rollback retained diagnostics");
         var broken = typeof(Performance.ZNet_SaveWorld_Timing);
         Reset();
         PatchClassProcessor.Fail = broken;

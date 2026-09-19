@@ -5,6 +5,8 @@ namespace PluginConfiguration
 	public class Configuration
 	{
 		public static ConfigEntry<bool> modEnabled;
+        public static ConfigEntry<bool> diagnosticsEnabled, diagnosticAlerts, interactionDiagnostics;
+        public static ConfigEntry<int> diagnosticReportMinutes, alertDurationSeconds, alertCooldownSeconds, lowFpsThreshold;
 
 		public static ConfigEntry<bool> maxObjectsPerFrameEnabled;
 		public static ConfigEntry<int> maxObjectsPerFrame;
@@ -32,7 +34,14 @@ namespace PluginConfiguration
 
 		public static void Load(ConfigFile config)
 		{
-			modEnabled = config.Bind<bool>("General", "Enabled", true, "Enable or disable the mod");
+			diagnosticsEnabled = config.Bind("Diagnostics", "Enabled", true, "Observe server performance and per-player sends without changing gameplay. Needs restart.");
+            diagnosticAlerts = config.Bind("Diagnostics", "Alerts", true, "Warn on sustained low FPS or continuously blocked send attempts, after a 60-second startup/join grace.");
+            interactionDiagnostics = config.Bind("Diagnostics", "InteractionTrace", false, "Log selected interaction and missing object RPC dispatches. At most one trace per two seconds globally. No payloads; not end-to-end latency.");
+            diagnosticReportMinutes = config.Bind("Diagnostics", "ReportMinutes", 5, new ConfigDescription("Summary interval; 0 disables reports but keeps status and alerts.", new AcceptableValueRange<int>(0, 60)));
+            alertDurationSeconds = config.Bind("Diagnostics", "AlertDurationSeconds", 30, new ConfigDescription("Continuous problem duration before warning.", new AcceptableValueRange<int>(5, 600)));
+            alertCooldownSeconds = config.Bind("Diagnostics", "AlertCooldownSeconds", 300, new ConfigDescription("Minimum time between warnings for the same connection/signal.", new AcceptableValueRange<int>(30, 3600)));
+            lowFpsThreshold = config.Bind("Diagnostics", "LowFpsThreshold", 25, new ConfigDescription("Measured FPS below which sustained alerts apply while players are connected.", new AcceptableValueRange<int>(1, 240)));
+            modEnabled = config.Bind<bool>("General", "Enabled", true, "Enable or disable the mod");
 
 			maxObjectsPerFrameEnabled = config.Bind<bool>("MaxObjectsPerFrame", "Enabled", true, "Enable or disable the feature");
 			maxObjectsPerFrame = config.Bind<int>("MaxObjectsPerFrame", "MaxObjects", 100, "Maximum number of objects the server can create per frame.");
@@ -52,7 +61,7 @@ namespace PluginConfiguration
 				"Every this many minutes, log per player how often their send queue was full. 0 disables.");
 
 			consoleCommandsEnabled = config.Bind<bool>("Server", "ConsoleCommands", true,
-				"Read commands from standard input: save, stop, players, give <item> <amount> <player>. In AMP set App.HasWriteableConsole=True to type them into its console, and App.ExitMethod=String with App.ExitString=stop to shut down cleanly. On Windows also set [Logging.Console] Enabled = false in BepInEx.cfg, or BepInEx's own console takes over standard input.");
+				"Read commands from standard input: status, save, stop, players, give <item> <amount> <player>. In AMP set App.HasWriteableConsole=True to type them into its console, and App.ExitMethod=String with App.ExitString=stop to shut down cleanly. On Windows also set [Logging.Console] Enabled = false in BepInEx.cfg, or BepInEx's own console takes over standard input.");
 			unityJobWorkers = config.Bind<int>("Server", "UnityJobWorkers", 8,
 				"Upper limit on Unity job worker threads. Unity starts one per CPU core, and on many-core hosts the idle ones still use CPU. Only ever lowers the count. 0 leaves Unity's default.");
 

@@ -104,6 +104,7 @@ namespace Requirements
 namespace Valheim_Serverside
 {
     public static class ServerConsole { public static void Start() { } public static void ProcessPending() { } }
+    internal static class DiagnosticRuntime { internal static bool Installed; internal static void Initialize() { } internal static void HookState(Type t, string s) {} internal static void Rollback() {} internal static void Tick() { } }
     public static class VanillaDrift { public static void Check(object logger) { } }
 }
 namespace Valheim_Serverside.Features
@@ -113,6 +114,12 @@ namespace Valheim_Serverside.Features
         public bool FeatureEnabled() => true;
         public class First { static void Prefix() { } }
         public class Second { static void Prefix() { } }
+    }
+    public class Diagnostics : FeaturesLib.IFeature
+    {
+        public bool FeatureEnabled() => true;
+        public class SendObservation { static void Prefix() { } }
+        public class InteractionObservation { static void Prefix() { } }
     }
     public class MaxObjectsPerFrame : FeaturesLib.IFeature { public bool FeatureEnabled() => false; }
     public class Networking : MaxObjectsPerFrame { }
