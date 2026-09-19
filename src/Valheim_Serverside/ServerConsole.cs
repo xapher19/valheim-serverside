@@ -24,7 +24,7 @@ namespace Valheim_Serverside
 
 		public static void Start()
 		{
-			Thread reader = new Thread(ReadLoop) { IsBackground = true, Name = "Dedicated Simulation console" };
+			Thread reader = new Thread(ReadLoop) { IsBackground = true, Name = "Northwatch console" };
 			reader.Start();
 			ServersidePlugin.logger.LogInfo("Console commands enabled on standard input: status, save, stop, players, give <item> <amount> <player>");
 		}
