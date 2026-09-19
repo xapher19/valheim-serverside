@@ -1,3 +1,10 @@
+## 1.9.4 — Northwatch
+
+- Rename the plugin, DLL, assembly metadata, packaging and status display to Northwatch Dedicated Simulation.
+- Add consolidated custom-build patch notes to the README and point downloads to this fork.
+- Preserve the compatibility GUID and existing configuration filename. Remove the previous simulation DLL when upgrading.
+- No gameplay or networking-policy changes.
+
 ## 1.9.3 (xapher19)
 
 - Add a server-panel `status` command with recent FPS, targets, player count, observed save state and refreshed per-hook registration health.
@@ -86,7 +93,7 @@ None of these raise the frame rate; they cut the spikes and the waiting between 
 
 ### Changed
 
-- Renamed to Sarkastic.eu Dedicated Simulation, a fork of Serverside Simulations by ddormer. The plugin GUID is unchanged; delete `Serverside_Simulations.dll` when upgrading.
+- Upstream renamed its fork of Serverside Simulations by ddormer. The plugin GUID is unchanged; delete `Serverside_Simulations.dll` when upgrading.
 - Game members are accessed directly instead of through Traverse, so game updates that rename them fail the build instead of silently doing nothing. If a Core patch fails to apply the mod now removes all its patches and the server runs vanilla. A startup check logs a warning when a vanilla method replaced by the mod has changed since it was last reviewed.
 
 

@@ -6,12 +6,12 @@ SS_VERSION=$(grep -oP '(?<=PluginVersion = ")\d+\.\d+\.\d+(?=";)' src/Valheim_Se
 
 cat > manifest.json <<- EOM
 {
-  "name": "SarkasticEU_Dedicated_Simulation",
+  "name": "Northwatch_Dedicated_Simulation",
   "description": "Run world and monster simulations on a dedicated server. Fork of Serverside Simulations, updated for Valheim 1.0.",
   "version_number": "$SS_VERSION",
   "dependencies": ["denikson-BepInExPack_Valheim-5.4.2350"],
-  "website_url": "https://github.com/cechacek/valheim-serverside"
+  "website_url": "https://github.com/xapher19/valheim-serverside"
 }
 EOM
 
-zip thunderstore-package.zip SarkasticEU_Dedicated_Simulation.dll icon.png manifest.json README.md CHANGELOG.md
+zip thunderstore-package.zip Northwatch_Dedicated_Simulation.dll icon.png manifest.json README.md CHANGELOG.md

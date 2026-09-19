@@ -1,10 +1,43 @@
-# Sarkastic.eu Dedicated Simulation
+# Northwatch Dedicated Simulation
+
+> **Northwatch** builds on [cechacek’s upstream fork](https://github.com/cechacek/valheim-serverside) and the original project.
 
 > **Fork of [Serverside Simulations](https://github.com/ddormer/valheim-serverside)** by ddormer, which is no longer maintained as of 2026, renamed at the original authors' request. Updated for Valheim 1.0, building on [ddormer/valheim-serverside#118](https://github.com/ddormer/valheim-serverside/pull/118) by @mreastman.
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Updated for Valheim **1.0.7**.
+Current custom build: **Northwatch 1.9.4**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+
+## Patch notes
+
+### 1.9.4 — Northwatch
+
+- Renamed the plugin, assembly metadata, DLL, packaging and status output to **Northwatch Dedicated Simulation**.
+- New DLL: `Northwatch_Dedicated_Simulation.dll`. Remove the previous simulation DLL before installing; do not load both.
+- Updated installation/release links to this fork and added these patch notes.
+- Preserved the plugin GUID and existing `MVP.Valheim_Serverside_Simulations.cfg`; settings carry over. No gameplay changes in this release.
+
+### 1.9.3 — Diagnostics
+
+- Added the server-panel `status` command, per-player send attempt/submission counts, queue-pressure and low-FPS alerts, and memory/GC reports.
+- Added optional, rate-limited chest/pickup/missing-RPC diagnostics.
+- Corrected PlayFab queue labels and isolated optional diagnostics hooks.
+
+### 1.9.2 — Boats and portals
+
+- Keep a suitable nearby client as an idle boat’s owner; retain driver priority, cargo protection and server fallback.
+- Reset water-impact protection only on an actual handoff to the server.
+- Recheck player departures after incoming position updates to address stale portal replicas.
+- Added automatic PR builds and world-synchronisation regression checks.
+
+### 1.9.1 and initial hardening
+
+- Fixed FPS-hook argument binding and added actual-game installation checks.
+- Isolated optional Performance hooks, added startup patch-health reporting and verified/fell back to the configured FPS target.
+- Preserved Core’s atomic rollback and vanilla-client/PS5 compatibility.
+
+See [CHANGELOG.md](CHANGELOG.md) for the inherited release history. Automated checks
+verify logic and installation; live portal cleanup still needs an observer test.
 
 ## Why, compared to vanilla
 
@@ -50,8 +83,8 @@ Compared to Serverside Simulations 1.1.9 (details in the [changelog](CHANGELOG.m
 ## Installation
 
 1. Install [BepInExPack_Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/) 5.4.2350 or newer on the dedicated server.
-2. Copy `SarkasticEU_Dedicated_Simulation.dll` from the [latest release](https://github.com/cechacek/valheim-serverside/releases/latest) into `BepInEx/plugins/`.
-3. Back up the world and restart the server. `BepInEx/LogOutput.log` should show `Sarkastic.eu Dedicated Simulation installed` and `Vanilla drift check passed`.
+2. Stop the server and remove the previous simulation plugin DLL from `BepInEx/plugins/` (including subfolders). Keep its backup outside the plugins folder. Copy `Northwatch_Dedicated_Simulation.dll` from the [latest release](https://github.com/xapher19/valheim-serverside/releases/latest) into `BepInEx/plugins/`.
+3. Back up the world and restart the server. `BepInEx/LogOutput.log` should show `Northwatch Dedicated Simulation installed` and `Vanilla drift check passed`.
 
 Clients need nothing.
 

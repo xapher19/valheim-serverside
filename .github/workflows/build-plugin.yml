@@ -66,12 +66,12 @@ jobs:
       run: |
         dotnet build tests/GamePatchSmoke/GamePatchSmoke.csproj -c Release
         if ($LASTEXITCODE -ne 0) { throw "Patch smoke-test build failed" }
-        & "$env:ProgramFiles/Mono/bin/mono.exe" ./tests/GamePatchSmoke/bin/Release/net472/GamePatchSmoke.exe serverfiles bin/Release/SarkasticEU_Dedicated_Simulation.dll
+        & "$env:ProgramFiles/Mono/bin/mono.exe" ./tests/GamePatchSmoke/bin/Release/net472/GamePatchSmoke.exe serverfiles bin/Release/Northwatch_Dedicated_Simulation.dll
         if ($LASTEXITCODE -ne 0) { throw "Real game patch installation failed" }
 
     - name: Upload DLL
       uses: actions/upload-artifact@v4.6.2
       with:
-        name: dedicated-simulation-${{ github.sha }}
-        path: bin/Release/SarkasticEU_Dedicated_Simulation.dll
+        name: northwatch-${{ github.sha }}
+        path: bin/Release/Northwatch_Dedicated_Simulation.dll
         if-no-files-found: error

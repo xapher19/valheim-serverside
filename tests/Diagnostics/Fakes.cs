@@ -27,7 +27,7 @@ namespace PluginConfiguration {
 }
 namespace Valheim_Serverside {
  public class Logger { public List<string> Messages = new(); public void LogInfo(object m) => Messages.Add(m.ToString()); public void LogWarning(object m) => Messages.Add(m.ToString()); }
- public static class ServersidePlugin { public const string PluginGUID = "test", PluginVersion = "1.9.3"; public static Logger logger = new(); }
+ public static class ServersidePlugin { public const string PluginGUID = "test", PluginName = "Northwatch Dedicated Simulation", PluginVersion = "1.9.4"; public static Logger logger = new(); }
 }
 namespace Valheim_Serverside.Features { public static class Networking { public static int QueueSize() => 48*1024; } }
 public class Socket { public int Queue; public bool Connected = true; public bool IsConnected() => Connected; public int GetSendQueueSize() => Queue; }

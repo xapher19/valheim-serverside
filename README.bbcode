@@ -1,79 +1,292 @@
 
-[b][size=7]Valheim Serverside Simulations[/size][/b]
+[b][size=7]Northwatch Dedicated Simulation[/size][/b]
+[quote]
 
-Note: As of 2026, this project is no longer maintained. If you release your own version of this mod, we kindly request that you use a different name for it.
+[b]Northwatch[/b] builds on [url=https://github.com/cechacek/valheim-serverside]cechacek’s upstream fork[/url] and the original project.
+[/quote]
+[quote]
 
-[url=https://github.com/ddormer/valheim-serverside/actions/workflows/build-plugin.yml][img alt="Build Plugin"]https://github.com/ddormer/valheim-serverside/actions/workflows/build-plugin.yml/badge.svg[/img][/url]
+[b]Fork of [url=https://github.com/ddormer/valheim-serverside]Serverside Simulations[/url][/b] by ddormer, which is no longer maintained as of 2026, renamed at the original authors&#39; request. Updated for Valheim 1.0, building on [url=https://github.com/ddormer/valheim-serverside/pull/118]ddormer/valheim-serverside#118[/url] by @mreastman.
+[/quote]
 
-[img alt="banner"]https://raw.githubusercontent.com/ddormer/valheim-serverside/refs/heads/main/ss-gh.png[/img]
+The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. [b]Server-side only: players keep vanilla clients.[/b]
 
-Run world and monster simulations on a [b]dedicated server[/b].
+Current custom build: [b]Northwatch 1.9.4[/b], compiled and hook-tested against Valheim [b]1.0.15[/b]. The inherited drift fingerprints retain their original review baseline.
 
-Updated for patch: 0.220.5
+[b][size=6]Patch notes[/size][/b]
 
-[b][size=5]Features[/size][/b]
+[b][size=5]1.9.4 — Northwatch[/size][/b]
 
 [list]
-[*]Server simulates world and AI physics.
-[*]Client FPS improvements
-[*]Ships are simulated by the driver to improve the steering experience with high latency.
+[*]Renamed the plugin, assembly metadata, DLL, packaging and status output to [b]Northwatch Dedicated Simulation[/b].
+[*]New DLL: [font=monospace]Northwatch_Dedicated_Simulation.dll[/font]. Remove the previous simulation DLL before installing; do not load both.
+[*]Updated installation/release links to this fork and added these patch notes.
+[*]Preserved the plugin GUID and existing [font=monospace]MVP.Valheim_Serverside_Simulations.cfg[/font]; settings carry over. No gameplay changes in this release.
 [/list]
 
-[b][size=5]Installation[/size][/b]
+[b][size=5]1.9.3 — Diagnostics[/size][/b]
+
+[list]
+[*]Added the server-panel [font=monospace]status[/font] command, per-player send attempt/submission counts, queue-pressure and low-FPS alerts, and memory/GC reports.
+[*]Added optional, rate-limited chest/pickup/missing-RPC diagnostics.
+[*]Corrected PlayFab queue labels and isolated optional diagnostics hooks.
+[/list]
+
+[b][size=5]1.9.2 — Boats and portals[/size][/b]
+
+[list]
+[*]Keep a suitable nearby client as an idle boat’s owner; retain driver priority, cargo protection and server fallback.
+[*]Reset water-impact protection only on an actual handoff to the server.
+[*]Recheck player departures after incoming position updates to address stale portal replicas.
+[*]Added automatic PR builds and world-synchronisation regression checks.
+[/list]
+
+[b][size=5]1.9.1 and initial hardening[/size][/b]
+
+[list]
+[*]Fixed FPS-hook argument binding and added actual-game installation checks.
+[*]Isolated optional Performance hooks, added startup patch-health reporting and verified/fell back to the configured FPS target.
+[*]Preserved Core’s atomic rollback and vanilla-client/PS5 compatibility.
+[/list]
+
+See [url=CHANGELOG.md]CHANGELOG.md[/url] for the inherited release history. Automated checks
+verify logic and installation; live portal cleanup still needs an observer test.
+
+[b][size=6]Why, compared to vanilla[/size][/b]
+
+In vanilla, the first player to enter an area owns it: their game runs the monster AI and physics there, and everyone else nearby sees that area through them. If that player has a poor connection or a slow PC, everyone around suffers — monsters jump around, hits land late — and updates travel from each player to the server, on to the owner and back.
+
+With this mod the server owns and simulates those areas:
+
+[list]
+[*]Each player depends only on their own connection to the server, not on someone else&#39;s.
+[*]Clients no longer run AI and physics for the areas they would have owned, which helps slower PCs.
+[*]Ships are handed to their driver, so steering has no round trip. Releasing the helm retains a suitable nearby client as owner; unattended ships fall back to the server when no eligible client remains.
+[/list]
+
+What it costs:
+
+[list]
+[*]The server needs more CPU, RAM and upload than a vanilla server.
+[*]A player alone in an area now has their round trip to the server where vanilla would have had none. With a nearby server this is rarely noticeable.
+[/list]
+
+[b][size=5]Observed on one server[/size][/b]
+
+Valheim 1.0.7, Windows dedicated server, up to four players, September 2026. One group&#39;s session, not a benchmark.
+
+[list]
+[*]No exceptions or mod warnings during play.
+[*]Items picked up from the ground: 98% of 437 on the first ownership request (1.2.0), 214 of 214 (1.5.0); the rest within 2 s.
+[*]The per-player send queue was full in at most 0.2% of send ticks, only in bursts such as portals.
+[*]About 0.8 of a CPU core on average with one player, and 15–25% of a core while empty (with the job worker cap). RAM about 1.6 GB empty, 2–2.6 GB with players, levelling off.
+[/list]
+
+Not covered yet: Frost Foundry, sailing, raids, Deep North events, a non-default [font=monospace]-simulationdistance[/font], and the console commands under a Windows server panel.
+
+[b][size=6]What this fork adds[/size][/b]
+
+Compared to Serverside Simulations 1.1.9 (details in the [url=CHANGELOG.md]changelog[/url]):
+
+[list]
+[*][b]Valheim 1.0 support[/b], and a review of every patched method against the 1.0 code.
+[*][b]Fixes:[/b] location prefabs were never released (a memory leak); zones could be generated before their locations; no objects were created with a non-classic [font=monospace]-simulationdistance[/font]; 1.0 errors on the server with ship sails, the Frost Foundry (which duplicated items) and leviathans; the far ring of unexplored land was not pre-generated as in vanilla, so distant trees, cliffs and the Mistlands mist appeared late.
+[*][b]Objects nearest to a player are created first[/b], e.g. after a portal.
+[*][b]Server-side networking limits[/b] from BetterNetworking, with a per-player log of how often they are reached.
+[*][b]Cap on Unity job worker threads[/b], which otherwise idle at CPU cost on many-core hosts.
+[*][b]Fix: player changes that the save skipped.[/b] Valheim 1.0 rewrites only the world chunks it marked as changed, and a change received from a player marks nothing, so what a player just built or moved could be missing after a restart.
+[*][b]Admin commands on the server console:[/b] [font=monospace]give &lt;item&gt; &lt;amount&gt; &lt;player&gt;[/font], [font=monospace]players[/font], [font=monospace]save[/font], [font=monospace]stop[/font], typed into the panel the server runs in (AMP). Valheim 1.0 does not let a player on a dedicated server use [font=monospace]spawn[/font] from the game console, admin or not. Optionally the same as chat commands for admins.
+[*][b]Smoother server frames:[/b] world updates reach every player at a steady interval however many are online, one slow frame no longer makes the next one slow through physics catch-up, and new zones are generated one per tick instead of one per exploring player. A periodic log shows frame times and what they are spent on.
+[*][b][font=monospace]save[/font] and [font=monospace]stop[/font] console commands[/b] for server panels that write to standard input.
+[*][b]Safety:[/b] a startup check warns when a vanilla method the mod replaces has changed in a game update; if the core patches cannot be applied, the mod removes itself and the server runs vanilla.
+[/list]
+
+[b][size=6]Installation[/size][/b]
 
 [list=1]
-[*]Install BepInEx (optionally installing &quot;Better Networking&quot; on both clients and the server is recommended)
-[*]Copy plugin DLL into the BepInEx/plugins/ directory on your dedicated server.
-[*]You&#39;re done! No client-side changes are needed.
+[*]Install [url=https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/]BepInExPack_Valheim[/url] 5.4.2350 or newer on the dedicated server.
+[*]Stop the server and remove the previous simulation plugin DLL from [font=monospace]BepInEx/plugins/[/font] (including subfolders). Keep its backup outside the plugins folder. Copy [font=monospace]Northwatch_Dedicated_Simulation.dll[/font] from the [url=https://github.com/xapher19/valheim-serverside/releases/latest]latest release[/url] into [font=monospace]BepInEx/plugins/[/font].
+[*]Back up the world and restart the server. [font=monospace]BepInEx/LogOutput.log[/font] should show [font=monospace]Northwatch Dedicated Simulation installed[/font] and [font=monospace]Vanilla drift check passed[/font].
 [/list]
 
-[i]It&#39;s recommended to also install the mod &quot;BetterNetworking&quot;, it works very well with Serverside Simulations.[/i]
+Clients need nothing.
 
-[b][size=5]Configuration[/size][/b]
+[b]Upgrading from Serverside Simulations:[/b] delete [font=monospace]Serverside_Simulations.dll[/font]. Both use the same plugin GUID, so only one can load; the config file [font=monospace]MVP.Valheim_Serverside_Simulations.cfg[/font] carries over.
+
+[b]Do not also run BetterNetworking on the server:[/b] its server-side limits are built in.
+
+[b][size=6]Configuration[/size][/b]
+
+[font=monospace]BepInEx/config/MVP.Valheim_Serverside_Simulations.cfg[/font], read at startup:
+
+| Setting | Default | |
+|---|---|---|
+| [font=monospace][General] Enabled[/font] | true | Turn the mod off without removing it. |
+| [font=monospace][MaxObjectsPerFrame] MaxObjects[/font] | 100 | Objects the server creates per frame. Higher loads areas faster at more CPU. |
+| [font=monospace][Networking] QueueSizeKB[/font] | 48 | Data queued per player before the server holds world updates for that tick (Valheim: 10). 48 KB at 20 ticks/s is about 960 KB/s, just under the send rate cap; above 80 Steam starts failing. |
+| [font=monospace][Networking] SteamSendRateMinKB[/font] / [font=monospace]MaxKB[/font] | 256 / 1024 | Steam send rate per player, KB/s (Valheim: 150). Keep min × players below the server&#39;s upload. |
+| [font=monospace][Networking] StatsIntervalMinutes[/font] | 5 | How often to log, per player, how often the send queue was full. Near 0% means the limits are not what holds you back. 0 disables. |
+| [font=monospace][Server] UnityJobWorkers[/font] | 8 | Upper limit on Unity job worker threads (Unity: one per CPU core). Only ever lowers the count; 0 leaves Unity&#39;s default. |
+| [font=monospace][Server] ConsoleCommands[/font] | true | Read commands from standard input: [font=monospace]save[/font], [font=monospace]stop[/font] (saves first), [font=monospace]players[/font], [font=monospace]give &lt;item&gt; &lt;amount&gt; &lt;player&gt;[/font] (drops the items in front of that player; the name may be a unique beginning). In AMP this is its console, see the AMP chapter. |
+| [font=monospace][Performance] SendIntervalMs[/font] | 100 | How often each player gets world updates. Valheim serves one player per frame, so with N players each waits N+1 frames (330 ms at 15 FPS with 4 players). Each send costs server CPU; see the performance log. 0 keeps Valheim&#39;s behaviour. |
+| [font=monospace][Performance] MaxCatchUpMs[/font] | 100 | Longest frame counted in full. After a slow frame Unity reruns physics and every creature&#39;s fixed update for each 20 ms missed (Valheim allows 200 ms, 10 times); 100 caps it at 5. Game time runs slightly slow during such frames. 0 keeps the game&#39;s setting. |
+| [font=monospace][Performance] MaxZonesPerTick[/font] | 1 | New zones generated per zone tick (10 per second), players taking turns. 0 = one per player per tick, as before. |
+| [font=monospace][Performance] ServerTargetFps[/font] | 60 | Frame rate the server aims for (the game sets 30). With time to spare a frame no longer waits 33 ms, so reactions to players halve; under load it changes nothing. 0 keeps 30. |
+| [font=monospace][Fixes] SaveClientChanges[/font] | true | Count a change that arrives from a player as a change to its world chunk, so the next save writes it. Valheim 1.0 rewrites only changed chunks and skips those. |
+| [font=monospace][AdminChat] Enabled[/font] | false | Admins (adminlist.txt) can shout [font=monospace]/give &lt;item&gt; [amount][/font], [font=monospace]/save[/font] and [font=monospace]/help[/font]; replies appear in their console (F5). The shout is visible to players nearby; the server console does the same without it. |
+| [font=monospace][AdminChat] Prefix[/font] / [font=monospace]MaxGiveAmount[/font] | [font=monospace]/[/font] / 1000 | Command prefix; most items one [font=monospace]/give[/font] drops. |
+| [font=monospace][Performance] StatsIntervalMinutes[/font] | 5 | How often to log FPS, frame times, physics steps per frame, the cost of world updates and zone generation, and what the slowest frame was doing, while players are online. 0 disables. |
+
+[b][size=6]Hosting notes[/size][/b]
 
 [list]
-[*]MaxObjectsPerFrame.MaxObjects can be increased to improve the loading times of areas on the server, at the expense of CPU usage.
+[*][b]After a game update[/b], look for [font=monospace]Vanilla ... changed[/font] warnings in the log, and keep world backups.
+[*]Running under AMP (CubeCoders)? Settings and pitfalls (Sleep mode, stop without save, console commands) are in [url=https://github.com/cechacek/amp-valheim-bepinex]cechacek/amp-valheim-bepinex[/url].
 [/list]
 
-[b][size=5]Caveats[/size][/b]
+[b][size=6]Caveats[/size][/b]
 
 [list]
 [*]Only runs on dedicated servers.
-[*]The mod dramatically increases server resource usage and running it on a weak CPU or limited RAM may lead to a poor gameplay experience.
-[*]The mod should be disabled when using the &quot;optterrain&quot; command.
-[*]This mod does not prevent cheating or any kind of client manipulation.
-[*]While this mod is quite light on complexity, as with most mods it&#39;s possible future Valheim patches will break the mod in unexpected ways. We recommend you back up your characters and worlds and/or consider disabling this mod anytime a new game patch is released.
+[*]Uses considerably more server resources than vanilla; a weak CPU or little RAM may make play worse, not better.
+[*]Disable the mod when using the [font=monospace]optterrain[/font] command.
+[*]It does not prevent cheating or any kind of client manipulation.
+[*]Game updates can break it in unexpected ways; back up characters and worlds before updating.
 [/list]
 
-[b][size=5]Why?[/size][/b]
+[b][size=6]How it works[/size][/b]
 
-Ordinarily, to keep server resource usage low, the Valheim server will hand off simulation of an area to the first client that enters said area. However, if the player in charge of the area has a poor connection all other players in that area will suffer. This mod is an attempt at improving that specific situation at the cost of increased latency for the client which would ordinarily own the area.
+Ordinarily, to keep server resource usage low, the Valheim server hands off simulation of an area to the first client that enters it. This mod makes terrain, monsters and other objects that are normally created and owned by clients be created on — and thus owned and simulated by — the server, around every connected player.
 
-[b][size=5]How?[/size][/b]
+[b][size=4]For mod developers - compatibility[/size][/b]
 
-This dedicated server mod causes terrain, monsters and other objects that are normally created and owned by clients to instead be created on—and thus owned and simulated by—the server.
+This mod keeps the plugin GUID of Serverside Simulations, [font=monospace]MVP.Valheim_Serverside_Simulations[/font], so existing checks for it keep working.
 
-[b][size=4]For mod developers - compatibility with Serverside Simulations[/size][/b]
-
-For mod developers interested in maintaining compatibility with Serverside Simulations:
+If your mod changes the simulation or behaviour of the world, it has to be able to run on the dedicated server:
 
 [list]
-[*]If your mod makes changes relating to simulation / behaviour of the world, it will need to be able run on the dedicated server and should take these points into account:
-[list]
-[*]Player.m_localPlayer is always [font=monospace]null[/font] on a dedicated server; your code should check for this.
-[*]On a dedicated server, [font=monospace]ZNet.instance.GetReferencePosition()[/font] returns a position outside of the world and is not related to any player position.
-[*]Any graphical or hud-related code should probably be behind a [font=monospace]ZNet.instance.IsDedicated()[/font] check, if that code is expected to run on the server.
-[/list]
+[*][font=monospace]Player.m_localPlayer[/font] is always [font=monospace]null[/font] on a dedicated server; check for it.
+[*]On a dedicated server, [font=monospace]ZNet.instance.GetReferencePosition()[/font] returns a position outside of the world, unrelated to any player.
+[*]Graphics or HUD code should be behind a [font=monospace]ZNet.instance.IsDedicated()[/font] check if it can run on the server.
 [/list]
 
-[b][size=5]Manually compiling[/size][/b]
+[b][size=6]Patch health and FPS verification[/size][/b]
 
-To manually compile, create a file at [font=monospace]src/Environment.props[/font] with the following content, and change the path to point at your Valheim install.
+Startup logs report each Core and Performance hook as [font=monospace]ACTIVE[/font] after checking its
+Harmony registration. Core remains atomic: any failed or missing Core hook rolls
+back all simulation patches and prevents the Performance/FPS update loop starting.
+Each optional Performance hook has a separate Harmony owner, so a failed profiler
+or scheduler only removes that hook. Missing send/game-logic timing is reported as
+[font=monospace]unavailable[/font] rather than zero activity. Other missing profiling sections contribute
+to the report&#39;s [font=monospace]unaccounted[/font] time; consult startup health before interpreting it.
+Registration confirms installation, not that a game method has executed.
+
+On dedicated servers, five seconds after installation the plugin checks
+[font=monospace]Application.targetFrameRate[/font] against [font=monospace]ServerTargetFps[/font] (clamped to 30–240). If they
+differ, it warns and applies one direct fallback, then checks again ten seconds
+later. Further overrides warn without repeated writes; changing the configured
+value permits a new fallback attempt. A value at or below zero leaves the game&#39;s
+target alone. Verification checks the requested frame cap, not achieved FPS under
+load; periodic performance reports still show actual throughput.
+
+These changes are server-only and add no client requirements or network protocol
+changes. See [url=tests/Hardening/README.md]hardening regression checks[/url] for automated
+checks and the dedicated-server smoke test, including vanilla/PS5 clients.
+
+[b][size=6]Ship ownership and portal departures (1.9.2)[/size][/b]
+
+Idle ships prefer an eligible existing client owner, then a passenger, then the
+nearest eligible peer. Drivers take priority unless cargo is in use. Eligibility
+requires a connected, ready player with the ship in their active simulation area.
+Disconnected or out-of-range owners are replaced; the server remains the fallback.
+The server handoff resets water-impact protection once, rather than every idle
+tick. Normal water-impact damage is therefore no longer continually suppressed.
+
+This addresses a plausible cause of idle boats disagreeing with client-visible
+waves: the dedicated server&#39;s camera-dependent environment need not match the
+players&#39; weather. It does not change buoyancy coefficients, global weather, send
+rates or client interpolation, and it is not a promise of exact wave alignment.
+
+After a player&#39;s incoming world-data packet, the server rechecks the accepted
+character position against observers&#39; areas. In the inspected 1.0.15 code, the
+original sector callback runs before the new position is stored and can miss a
+portal departure. The recheck uses vanilla sector invalidation and send budgets;
+it does not destroy the player&#39;s world object, change ownership, or add a client
+RPC. Returning players can receive normal fresh updates after the cache is cleared.
+
+The build checks both new hooks against the downloaded game. See the
+[url=tests/WorldSync/README.md]world synchronisation tests[/url] for regression coverage and
+the live PC/PS5 test procedure. Both hooks are in Core&#39;s atomic patch group.
+
+[b][size=6]Building[/size][/b]
+
+Create [font=monospace]src/Environment.props[/font] pointing at a Valheim dedicated server install that has BepInEx:
 [pre][code]&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
 &lt;Project ToolsVersion=&quot;Current&quot; xmlns=&quot;http://schemas.microsoft.com/developer/msbuild/2003&quot;&gt;
   &lt;PropertyGroup&gt;
-    &lt;!-- Needs to be your path to the base Valheim folder --&gt;
+    &lt;!-- Needs to be your path to the base Valheim dedicated server folder --&gt;
     &lt;VALHEIM_DEDI_INSTALL&gt;E:\SteamLibrary\steamapps\common\Valheim dedicated server&lt;/VALHEIM_DEDI_INSTALL&gt;
   &lt;/PropertyGroup&gt;
 &lt;/Project&gt;
 [/code][/pre]
+
+Then, from the repository root (Windows or Linux, tested with .NET SDK 10):
+[pre][code]dotnet build src/Valheim_Serverside/Serverside_Simulations.csproj -c Release -p:SolutionDir=&lt;repository root&gt;/
+[/code][/pre]
+
+The DLL ends up in [font=monospace]bin/Release/[/font]. [font=monospace]SolutionDir[/font] is needed when building the project on its own; building [font=monospace]Valheim_Serverside.sln[/font] sets it.
+
+[b][size=6]Diagnostics (1.9.3)[/size][/b]
+
+Type [font=monospace]status[/font] in the hosting panel&#39;s server console. This uses the existing
+standard-input command reader; [font=monospace][Server] ConsoleCommands[/font] must be enabled and the
+host must forward typed input. It is not a new in-game/PS5 console command.
+The response includes version, simulation state, recent measured FPS, configured
+and effective frame caps, connected peers, save activity and hook registration.
+Reading status does not reset counters. Registration is rechecked on demand; it
+is not proof that the hook has executed or that gameplay is correct. Save completion
+means the game reported finishing; this command does not verify disk-write success.
+
+The [font=monospace][Diagnostics][/font] settings are:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| Enabled | true | Enable observations; restart after changing |
+| ReportMinutes | 5 | Memory and per-connection summaries; 0 disables summaries only |
+| Alerts | true | Warn about sustained low FPS and continuous queue blockage |
+| LowFpsThreshold | 25 | Threshold for completed approximately five-second FPS windows |
+| AlertDurationSeconds | 30 | Sustained problem duration before warning |
+| AlertCooldownSeconds | 300 | Minimum time between warnings for a signal |
+| InteractionTrace | false | Sample chest, pickup and missing object RPC dispatches |
+
+FPS alerts wait 60 seconds after diagnostics start and require connected, ready
+players. Queue alerts wait 60 seconds after first observing a connection. A recovery
+message follows a warned episode. Gaps longer than two seconds between send
+observations break continuity; silence is not treated as proof of congestion.
+
+Send totals are cumulative for the observed connection, not per reporting window.
+Shutdown flushes are excluded. A submitted packet can contain only object removals.
+An attempt that sends nothing can simply have no changes to send. Submission gaps
+may therefore be normal idle time; neither these gaps nor server dispatch time
+measure client delivery or visible interaction latency. Reconnects start fresh,
+disconnected peers are pruned, and at most 128 connections are tracked.
+
+PlayFab&#39;s queue-budget metric in the inspected 1.0.15 game is one quarter of its
+in-flight bytes. Steam send-rate settings do not apply to PlayFab, including PC
+players connecting through crossplay. The unsupported PlayFab send-rate getter is
+never called. Existing Networking summaries retain their configured interval and
+now label the socket and budget metric; Diagnostics supplies the richer totals.
+
+Memory snapshots use non-collecting managed heap reads, process working set when
+available, and collection-count deltas since the previous memory report. They do
+not force collection or enumerate all Unity objects.
+
+Interaction tracing observes [font=monospace]RPC_RequestOpen[/font], [font=monospace]RPC_RequestOwn[/font], [font=monospace]RPC_Pick[/font], and
+unknown object-RPC hashes, at most one sampled dispatch per two seconds globally.
+It records sender ID, transport, object/prefab, owner, handler presence and server
+dispatch duration, without reading or logging payloads. It does not change RPC
+handling; unsampled errors still follow the game&#39;s normal logging. Tracing may
+miss an individual interaction by design. Enable only while investigating.
+
+These additions do not change send budgets, simulation distance, update priority,
+boat physics or garbage collection. No client installation is required.
