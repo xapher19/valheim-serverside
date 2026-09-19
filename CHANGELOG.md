@@ -1,3 +1,12 @@
+## 1.9.3 (xapher19)
+
+- Add a server-panel `status` command with recent FPS, targets, player count, observed save state and refreshed per-hook registration health.
+- Add independent send observations: connection totals for attempts, submissions, blocked attempts, other no-submission outcomes and maximum gaps.
+- Label PlayFab queue values as scaled budget metrics; never call its unsupported send-rate getter.
+- Add sustained low-FPS and queue-pressure alerts with grace periods, cooldowns and recovery messages.
+- Add periodic memory/GC snapshots and opt-in, globally rate-limited chest/pickup/missing-object-RPC traces.
+- Isolate each optional Diagnostics hook, preserving Core's atomic rollback. Add diagnostics regression and real-game installation checks.
+
 ## 1.9.2 (xapher19)
 
 - Keep an eligible nearby client as an idle ship's owner, with driver priority, cargo protection and server fallback when players disconnect or leave range.

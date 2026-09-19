@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Sarkastic.eu Dedicated Simulation";
-		public const string PluginVersion = "1.9.2";
+		public const string PluginVersion = "1.9.3";
 
 		private static ServersidePlugin context;
 
@@ -70,6 +70,7 @@ namespace Valheim_Serverside
 			availableFeatures.AddFeature(new Features.MaxObjectsPerFrame());
 			availableFeatures.AddFeature(new Features.Networking());
 			availableFeatures.AddFeature(new Features.Performance());
+            availableFeatures.AddFeature(new Features.Diagnostics());
 			availableFeatures.AddFeature(new Features.AdminChat());
 			availableFeatures.AddFeature(new Features.Fixes());
 			availableFeatures.AddFeature(new Features.Debugging());
@@ -85,6 +86,8 @@ namespace Valheim_Serverside
 
 			VanillaDrift.Check(Logger);
 			installed = true;
+            DiagnosticRuntime.Installed = true;
+            DiagnosticRuntime.Initialize();
 			Features.TargetFpsVerifier.Start(Time.realtimeSinceStartupAsDouble);
 			Logger.LogInfo($"{PluginName} installed");
 		}
@@ -102,6 +105,7 @@ namespace Valheim_Serverside
 			{
 				Features.TargetFpsVerifier.Tick(Time.realtimeSinceStartupAsDouble);
 				Features.PerformanceStats.Frame();
+                DiagnosticRuntime.Tick();
 				if (Configuration.adminChatEnabled.Value)
 				{
 					Features.AdminChat.Tick();
@@ -157,32 +161,37 @@ namespace Valheim_Serverside
 			cleanly. A patch that fails usually means the game changed under it. Half of Core is
 			worse than none -- e.g. objects created around players while zones are not -- so a
 			Core failure removes every patch and leaves the server vanilla. Any other feature is
-			just switched off. Performance alone uses one owner per optional hook.
+			just switched off. Performance and Diagnostics use one owner per optional hook.
 		*/
 		private bool PatchFeatures(AvailableFeatures availableFeatures, HarmonyFeaturesPatcher patcher)
 		{
 			Features.Performance.ClearHookHealth();
-			List<Harmony> applied = new List<Harmony>();
+            foreach (IFeature candidate in availableFeatures._features)
+                foreach (Type hook in candidate.GetType().GetNestedTypes())
+                    DiagnosticRuntime.HookState(hook, candidate.FeatureEnabled() ? "PENDING" : "DISABLED");
+            List<Harmony> applied = new List<Harmony>();
 			foreach (IFeature feature in availableFeatures.EnabledFeatures())
 			{
 				string featureName = feature.GetType().Name;
-				if (feature is Features.Performance)
+				if (feature is Features.Performance || feature is Features.Diagnostics)
 				{
 					foreach (Type hook in feature.GetType().GetNestedTypes())
 					{
-						Harmony hookHarmony = new Harmony($"{PluginGUID}.Performance.{hook.Name}");
+						Harmony hookHarmony = new Harmony($"{PluginGUID}.{featureName}.{hook.Name}");
 						try
 						{
 							patcher.PatchAll(new[] { hook }, hookHarmony, verify: true);
 							applied.Add(hookHarmony);
 							Features.Performance.SetHookHealth(hook, true);
-							Logger.LogInfo($"Patch health: Performance.{hook.Name} ACTIVE (Harmony registration verified)");
+                            DiagnosticRuntime.HookState(hook, "ACTIVE");
+							Logger.LogInfo($"Patch health: {featureName}.{hook.Name} ACTIVE (Harmony registration verified)");
 						}
 						catch (Exception e)
 						{
 							hookHarmony.UnpatchSelf();
 							Features.Performance.SetHookHealth(hook, false);
-							Logger.LogWarning($"Patch health: Performance.{hook.Name} FAILED; only this hook was removed. {e}");
+                            DiagnosticRuntime.HookState(hook, "FAILED");
+							Logger.LogWarning($"Patch health: {featureName}.{hook.Name} FAILED; only this hook was removed. {e}");
 						}
 					}
 					continue;
@@ -198,11 +207,13 @@ namespace Valheim_Serverside
 							Logger.LogInfo($"Patch health: Core.{hook.Name} ACTIVE (Harmony registration verified)");
 						}
 					}
-					applied.Add(featureHarmony);
+					foreach (Type hook in feature.GetType().GetNestedTypes()) DiagnosticRuntime.HookState(hook, "ACTIVE");
+                    applied.Add(featureHarmony);
 				}
 				catch (Exception e)
 				{
 					featureHarmony.UnpatchSelf();
+                    foreach (Type hook in feature.GetType().GetNestedTypes()) DiagnosticRuntime.HookState(hook, "FAILED");
 					if (feature is Features.Core)
 					{
 						Logger.LogError($"Core patches failed to apply; {PluginName} is disabled and the server runs vanilla. {e}");
@@ -211,6 +222,7 @@ namespace Valheim_Serverside
 							instance.UnpatchSelf();
 						}
 						harmony.UnpatchSelf();
+                        DiagnosticRuntime.Rollback();
 						Features.Performance.ClearHookHealth();
 						Logger.LogError("Patch health: Core FAILED; all simulation patches rolled back. Performance and FPS verification will not start.");
 						return false;

@@ -176,3 +176,58 @@ dotnet build src/Valheim_Serverside/Serverside_Simulations.csproj -c Release -p:
 ```
 
 The DLL ends up in `bin/Release/`. `SolutionDir` is needed when building the project on its own; building `Valheim_Serverside.sln` sets it.
+
+## Diagnostics (1.9.3)
+
+Type `status` in the hosting panel's server console. This uses the existing
+standard-input command reader; `[Server] ConsoleCommands` must be enabled and the
+host must forward typed input. It is not a new in-game/PS5 console command.
+The response includes version, simulation state, recent measured FPS, configured
+and effective frame caps, connected peers, save activity and hook registration.
+Reading status does not reset counters. Registration is rechecked on demand; it
+is not proof that the hook has executed or that gameplay is correct. Save completion
+means the game reported finishing; this command does not verify disk-write success.
+
+The `[Diagnostics]` settings are:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| Enabled | true | Enable observations; restart after changing |
+| ReportMinutes | 5 | Memory and per-connection summaries; 0 disables summaries only |
+| Alerts | true | Warn about sustained low FPS and continuous queue blockage |
+| LowFpsThreshold | 25 | Threshold for completed approximately five-second FPS windows |
+| AlertDurationSeconds | 30 | Sustained problem duration before warning |
+| AlertCooldownSeconds | 300 | Minimum time between warnings for a signal |
+| InteractionTrace | false | Sample chest, pickup and missing object RPC dispatches |
+
+FPS alerts wait 60 seconds after diagnostics start and require connected, ready
+players. Queue alerts wait 60 seconds after first observing a connection. A recovery
+message follows a warned episode. Gaps longer than two seconds between send
+observations break continuity; silence is not treated as proof of congestion.
+
+Send totals are cumulative for the observed connection, not per reporting window.
+Shutdown flushes are excluded. A submitted packet can contain only object removals.
+An attempt that sends nothing can simply have no changes to send. Submission gaps
+may therefore be normal idle time; neither these gaps nor server dispatch time
+measure client delivery or visible interaction latency. Reconnects start fresh,
+disconnected peers are pruned, and at most 128 connections are tracked.
+
+PlayFab's queue-budget metric in the inspected 1.0.15 game is one quarter of its
+in-flight bytes. Steam send-rate settings do not apply to PlayFab, including PC
+players connecting through crossplay. The unsupported PlayFab send-rate getter is
+never called. Existing Networking summaries retain their configured interval and
+now label the socket and budget metric; Diagnostics supplies the richer totals.
+
+Memory snapshots use non-collecting managed heap reads, process working set when
+available, and collection-count deltas since the previous memory report. They do
+not force collection or enumerate all Unity objects.
+
+Interaction tracing observes `RPC_RequestOpen`, `RPC_RequestOwn`, `RPC_Pick`, and
+unknown object-RPC hashes, at most one sampled dispatch per two seconds globally.
+It records sender ID, transport, object/prefab, owner, handler presence and server
+dispatch duration, without reading or logging payloads. It does not change RPC
+handling; unsampled errors still follow the game's normal logging. Tracing may
+miss an individual interaction by design. Enable only while investigating.
+
+These additions do not change send budgets, simulation distance, update priority,
+boat physics or garbage collection. No client installation is required.

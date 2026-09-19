@@ -369,7 +369,7 @@ namespace Valheim_Serverside.Features
 					? $"their game logic {100 * s_fixedSum / period:0.0}% of the time, worst frame {1000 * s_fixedMax:0} ms; "
 					: "game logic timing unavailable (hook not active); ";
 				string sendTiming = Performance.HookActive(typeof(Performance.ZDOMan_SendZDOs_Timing))
-					? $"world sends {s_sends} ({s_sends / period:0.#}/s), avg {(s_sends > 0 ? 1000 * s_sendSum / s_sends : 0):0.0} ms, worst {1000 * s_sendMax:0.0} ms, {100 * s_sendSum / period:0.0}% of the time; "
+					? $"world send attempts {s_sends} ({s_sends / period:0.#}/s), avg {(s_sends > 0 ? 1000 * s_sendSum / s_sends : 0):0.0} ms, worst {1000 * s_sendMax:0.0} ms, {100 * s_sendSum / period:0.0}% of the time; "
 					: "world send timing unavailable (hook not active); ";
 				ServersidePlugin.logger.LogInfo(
 					$"Performance over {period / 60:0.#} min, {players} player(s): "

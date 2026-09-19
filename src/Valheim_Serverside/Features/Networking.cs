@@ -111,6 +111,7 @@ namespace Valheim_Serverside.Features
 			private class PeerStats
 			{
 				public string name;
+                public string transport;
 				public int ticks;
 				public int full;
 				public int maxQueued;
@@ -132,7 +133,8 @@ namespace Valheim_Serverside.Features
 					stats = new PeerStats();
 					s_peers[peer.m_uid] = stats;
 				}
-				stats.name = peer.m_playerName;
+				stats.name = DiagnosticRuntime.Clean(peer.m_playerName);
+                stats.transport = peer.m_socket.GetType().Name;
 				stats.ticks++;
 				// The same test SendZDOs makes: under 2 KB of room left means nothing is sent.
 				if (QueueSize() - queued < 2048)
@@ -157,7 +159,7 @@ namespace Valheim_Serverside.Features
 			{
 				foreach (PeerStats stats in s_peers.Values)
 				{
-					ServersidePlugin.logger.LogInfo($"Networking {stats.name}: send queue full in {100f * stats.full / stats.ticks:0.0}% of {stats.ticks} send ticks, at most {stats.maxQueued / 1024} of {QueueSize() / 1024} KB queued");
+					ServersidePlugin.logger.LogInfo($"Networking {stats.name} [{stats.transport}]: send queue full in {100f * stats.full / stats.ticks:0.0}% of {stats.ticks} send ticks, at most {stats.maxQueued / 1024} of {QueueSize() / 1024} KiB queue-budget metric" + (stats.transport == "ZPlayFabSocket" ? " (quarter of in-flight bytes; Steam rates do not apply)" : ""));
 				}
 				s_peers.Clear();
 			}

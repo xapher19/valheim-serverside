@@ -26,7 +26,7 @@ namespace Valheim_Serverside
 		{
 			Thread reader = new Thread(ReadLoop) { IsBackground = true, Name = "Dedicated Simulation console" };
 			reader.Start();
-			ServersidePlugin.logger.LogInfo("Console commands enabled on standard input: save, stop, players, give <item> <amount> <player>");
+			ServersidePlugin.logger.LogInfo("Console commands enabled on standard input: status, save, stop, players, give <item> <amount> <player>");
 		}
 
 		private static void ReadLoop()
@@ -89,7 +89,10 @@ namespace Valheim_Serverside
 			{
 				switch (words[0].ToLowerInvariant())
 				{
-					case "save":
+					case "status":
+                        Reply(DiagnosticRuntime.Status());
+                        break;
+                    case "save":
 						Reply(AdminCommands.Save("console"));
 						break;
 					case "stop":
@@ -120,10 +123,10 @@ namespace Valheim_Serverside
 						}
 						break;
 					case "help":
-						Reply("commands: save | stop | players | give <item> <amount> <player>");
+						Reply("commands: status | save | stop | players | give <item> <amount> <player>");
 						break;
 					default:
-						Reply($"unknown command '{command}'. Commands: save, stop, players, give <item> <amount> <player>");
+						Reply($"unknown command '{command}'. Commands: status, save, stop, players, give <item> <amount> <player>");
 						break;
 				}
 			}
