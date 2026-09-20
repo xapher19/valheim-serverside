@@ -112,47 +112,129 @@ namespace Valheim_Serverside
 			return id != 0L ? id : peer.m_uid;
 		}
 
-		internal static bool TryPlantFromDrop(ZDO drop, int stack, bool cultivated, long creator, out string message)
+		internal static int TryPlantFromDrop(ZDO drop, int stack, bool cultivated, long creator, out string message)
 		{
 			message = null;
 			EnsureRecipes(ZNetScene.instance);
-			if (drop == null || !drop.IsValid() || itemToFlora == null) return false;
-			if (!itemToFlora.TryGetValue(drop.GetPrefab(), out int floraHash)) return false;
+			if (drop == null || !drop.IsValid() || itemToFlora == null) return 0;
+			if (!itemToFlora.TryGetValue(drop.GetPrefab(), out int floraHash)) return 0;
 			floraNames.TryGetValue(floraHash, out string floraName);
 			if (string.IsNullOrEmpty(floraName)) floraName = "flora";
 			int cost = Math.Max(1, Configuration.farmingItemPlantCost.Value);
-			if (stack < cost) return false;
-			if (creator == 0L) return false;
+			if (stack < cost) return 0;
+			if (creator == 0L) return 0;
 			if (!cultivated && !Configuration.farmingPlaceAnywhere.Value)
 			{
 				message = "Need cultivated ground to plant " + floraName + ".";
-				return false;
+				return 0;
 			}
-			if (TooClose(drop.GetPosition(), floraHash, Configuration.farmingItemPlantSpacing.Value))
+
+			int wanted = stack / cost;
+			float spacing = Configuration.farmingItemPlantSpacing.Value;
+			Vector3 origin = drop.GetPosition();
+			var placedAt = new List<Vector3>();
+			int planted = 0;
+			int cols = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(wanted)));
+			int rows = Math.Max(1, (int)Math.Ceiling(wanted / (float)cols));
+			for (int i = 0; i < wanted; i++)
 			{
-				message = "Too close to another " + floraName + ".";
-				return false;
+				int row = i / cols, col = i % cols;
+				Vector3 want = origin + new Vector3((col - (cols - 1) / 2f) * spacing, 0f, (row - (rows - 1) / 2f) * spacing);
+				if (!TryFindPlot(want, floraHash, spacing, placedAt, out Vector3 plot))
+					break;
+				ZDO flora = PlaceFlora(plot, floraHash, creator);
+				if (flora == null) break;
+				placedAt.Add(plot);
+				ProductionAreas.Observe(flora);
+				planted++;
 			}
-			ZDO flora = PlaceFlora(drop.GetPosition(), floraHash, creator);
-			if (flora == null)
+			if (planted == 0)
 			{
-				message = "Could not plant " + floraName + ".";
-				return false;
+				message = TooClose(origin, floraHash, spacing, null)
+					? "Too close to another " + floraName + "."
+					: "Could not plant " + floraName + ".";
+				return 0;
 			}
-			int remaining = stack - cost;
-			if (remaining <= 0) ZDOMan.instance.DestroyZDO(drop);
-			else drop.Set("stack", remaining);
-			ProductionAreas.Observe(flora);
-			message = "Planted " + floraName + ".";
-			return true;
+
+			ConsumeDrop(drop, stack - planted * cost);
+			message = planted == 1
+				? "Planted " + floraName + "."
+				: "Planted " + planted + " " + floraName + ".";
+			if (stack - planted * cost >= cost)
+				message += " Need more cultivated ground for the rest.";
+			return planted;
 		}
 
-		private static bool TooClose(Vector3 pos, int floraHash, float spacing)
+		private static bool TryFindPlot(Vector3 want, int floraHash, float spacing, List<Vector3> used, out Vector3 plot)
 		{
-			if (ZDOMan.instance == null || spacing <= 0f) return false;
+			if (PlotFits(want, floraHash, spacing, used))
+			{
+				plot = want;
+				return true;
+			}
+			float step = Math.Max(0.5f, spacing * 0.5f);
+			for (int ring = 1; ring <= 6; ring++)
+			{
+				for (int x = -ring; x <= ring; x++)
+					for (int z = -ring; z <= ring; z++)
+					{
+						if (Math.Abs(x) != ring && Math.Abs(z) != ring) continue;
+						Vector3 candidate = want + new Vector3(x * step, 0f, z * step);
+						if (!PlotFits(candidate, floraHash, spacing, used)) continue;
+						plot = candidate;
+						return true;
+					}
+			}
+			plot = want;
+			return false;
+		}
+
+		private static bool PlotFits(Vector3 pos, int floraHash, float spacing, List<Vector3> used)
+		{
+			if (!IsCultivatedGround(pos) && !Configuration.farmingPlaceAnywhere.Value) return false;
+			return !TooClose(pos, floraHash, spacing, used);
+		}
+
+		private static void ConsumeDrop(ZDO drop, int remaining)
+		{
+			if (drop == null || !drop.IsValid() || ZDOMan.instance == null) return;
+			drop.SetOwner(ZDOMan.GetSessionID());
+			int keep = Math.Max(0, remaining);
+			if (ZNetScene.instance)
+			{
+				ZNetView view = ZNetScene.instance.FindInstance(drop);
+				ItemDrop item = view ? view.GetComponent<ItemDrop>() : null;
+				if (item != null) item.SetStack(keep);
+			}
+			drop.Set("stack", keep);
+			drop.Set("stack".GetStableHashCode(), keep);
+			if (ZNet.instance != null)
+			{
+				foreach (ZNetPeer peer in ZNet.instance.GetPeers())
+				{
+					if (peer == null || !peer.IsReady()) continue;
+					ZDOMan.instance.ForceSendZDO(peer.m_uid, drop.m_uid);
+				}
+			}
+			if (keep <= 0) ZDOMan.instance.DestroyZDO(drop);
+		}
+
+		private static bool TooClose(Vector3 pos, int floraHash, float spacing, List<Vector3> used)
+		{
+			if (spacing <= 0f) return false;
+			float limit = spacing * spacing;
+			if (used != null)
+			{
+				for (int i = 0; i < used.Count; i++)
+				{
+					Vector3 at = used[i];
+					float ux = at.x - pos.x, uz = at.z - pos.z;
+					if (ux * ux + uz * uz < limit) return true;
+				}
+			}
+			if (ZDOMan.instance == null) return false;
 			List<ZDO>[] sectors = ZDOMan.instance.m_objectsBySector;
 			if (sectors == null) return false;
-			float limit = spacing * spacing;
 			for (int s = 0; s < sectors.Length; s++)
 			{
 				List<ZDO> bucket = sectors[s];

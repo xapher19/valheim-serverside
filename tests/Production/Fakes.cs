@@ -68,6 +68,8 @@ public class ZDO
         else if (key == ZDOVars.s_playerID) playerId = value;
         else extraLong[key] = value;
     }
+    public void Set(int key, int value) { stack = value; extraLong[key] = value; }
+    public int GetInt(int key, int def=0) => extraLong.TryGetValue(key, out var v) ? (int)v : def;
     public string GetString(int key, string def="") => extraString.TryGetValue(key, out var v) ? v : def;
     public void Set(int key, string value) => extraString[key] = value;
     public void Set(string key, int value) { if (key == "stack") stack = value; }
@@ -145,8 +147,8 @@ public class ZNetScene : UnityEngine.Object
     public static ZNetScene instance;
     public Dictionary<int,UnityEngine.GameObject> m_namedPrefabs=new();
     public UnityEngine.GameObject GetPrefab(string name)=>m_namedPrefabs.TryGetValue(name.GetStableHashCode(), out var g)?g:null;
-    public UnityEngine.GameObject FindInstance(ZDO zdo)=>null;
-    public void CreateObject(ZDO zdo) {}
+    public ZNetView FindInstance(ZDO zdo)=>null;
+    public UnityEngine.GameObject CreateObject(ZDO zdo) => null;
 }
 public class Heightmap : UnityEngine.Object
 {
@@ -187,8 +189,18 @@ public class Pickable : UnityEngine.Object { public int m_respawnTimeMinutes; }
 public class RandomEvent {public float m_eventRange=100; public UnityEngine.Vector3 m_pos;}
 public class SpawnSystem {public class SpawnData {}}
 public class RandEventSystem {public RandomEvent m_activeEvent;}
-public class ZNetView : UnityEngine.Object {public ZDO zdo;public bool IsValid()=>zdo!=null;public ZDO GetZDO()=>zdo;}
-public class ItemDrop {public ZNetView m_nview;}
+public class ZNetView : UnityEngine.Object
+{
+    public ZDO zdo;
+    public bool IsValid()=>zdo!=null;
+    public ZDO GetZDO()=>zdo;
+    public T GetComponent<T>() where T:class => null;
+}
+public class ItemDrop : UnityEngine.Object
+{
+    public ZNetView m_nview;
+    public void SetStack(int n) { if (m_nview != null && m_nview.GetZDO() != null) m_nview.GetZDO().stack = n; }
+}
 public class ZRoutedRpc
 {
     public static ZRoutedRpc instance=new();public static long Everybody=0;public List<string> messages=new();

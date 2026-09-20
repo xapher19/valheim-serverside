@@ -57,26 +57,31 @@ namespace Valheim_Serverside
 				warned.Remove(id);
 			}
 
-			int planted = 0;
-			for (int i = 0; i < candidates.Count && planted < 8; i++)
+			int plantedDrops = 0;
+			int cost = Math.Max(1, Configuration.farmingItemPlantCost.Value);
+			for (int i = 0; i < candidates.Count && plantedDrops < 4; i++)
 			{
 				ZDO zdo = candidates[i];
 				if (zdo == null || !zdo.IsValid()) continue;
 				int stack = StackOf(zdo);
-				if (stack < Configuration.farmingItemPlantCost.Value) continue;
 				bool cultivated = FarmingSupport.IsCultivatedGround(zdo.GetPosition());
 				long creator = FarmingSupport.CreatorAt(zdo.GetPosition(), out ZNetPeer peer);
-				if (!FarmingSupport.TryPlantFromDrop(zdo, stack, cultivated, creator, out string message))
+				if (stack < cost)
 				{
-					if (message != null && peer != null && warned.Add(zdo.m_uid)) Notify(peer, message);
+					WarnOnce(zdo, peer, "Need " + cost + " to plant (this drop has " + stack + ").");
 					continue;
 				}
-				if (zdo.IsValid()) SyncStack(zdo, zdo.GetInt("stack", 0));
-				planted++;
-				plantsThisSession++;
+				int n = FarmingSupport.TryPlantFromDrop(zdo, stack, cultivated, creator, out string message);
+				if (n <= 0)
+				{
+					WarnOnce(zdo, peer, message);
+					continue;
+				}
+				plantedDrops++;
+				plantsThisSession += n;
 				firstSeen.Remove(zdo.m_uid);
 				warned.Remove(zdo.m_uid);
-				if (message != null && peer != null) Notify(peer, message);
+				if (message != null) Notify(peer, message);
 			}
 		}
 
@@ -85,13 +90,8 @@ namespace Valheim_Serverside
 			ItemDrop drop = DropOf(zdo);
 			if (drop != null && drop.m_itemData != null && drop.m_itemData.m_stack > 0)
 				return drop.m_itemData.m_stack;
-			return zdo.GetInt("stack", 1);
-		}
-
-		private static void SyncStack(ZDO zdo, int remaining)
-		{
-			ItemDrop drop = DropOf(zdo);
-			if (drop != null) drop.SetStack(Mathf.Max(0, remaining));
+			int fromZdo = zdo.GetInt(ZDOVars.s_stack, zdo.GetInt("stack", 0));
+			return fromZdo > 0 ? fromZdo : 1;
 		}
 
 		private static ItemDrop DropOf(ZDO zdo)
@@ -101,11 +101,27 @@ namespace Valheim_Serverside
 			return view ? view.GetComponent<ItemDrop>() : null;
 		}
 
+		private static void WarnOnce(ZDO zdo, ZNetPeer peer, string message)
+		{
+			if (zdo == null || string.IsNullOrEmpty(message) || !warned.Add(zdo.m_uid)) return;
+			Notify(peer, message);
+		}
+
 		private static void Notify(ZNetPeer peer, string text)
 		{
-			if (peer == null || peer.m_rpc == null) return;
-			try { peer.m_rpc.Invoke("RemotePrint", "[server] " + text); }
-			catch (Exception e) { ServersidePlugin.logger.LogWarning("Item planting notice failed: " + e.GetType().Name); }
+			if (string.IsNullOrEmpty(text)) return;
+			try
+			{
+				if (ZRoutedRpc.instance != null && peer != null)
+					ZRoutedRpc.instance.InvokeRoutedRPC(peer.m_uid, "ShowMessage", (int)MessageHud.MessageType.TopLeft, "Northwatch: " + text);
+			}
+			catch (Exception) { }
+			if (peer != null && peer.m_rpc != null)
+			{
+				try { peer.m_rpc.Invoke("RemotePrint", "[server] " + text); }
+				catch (Exception) { }
+			}
+			ServersidePlugin.logger.LogInfo("Item planting: " + text);
 		}
 	}
 }

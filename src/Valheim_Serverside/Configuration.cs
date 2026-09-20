@@ -47,7 +47,7 @@ namespace PluginConfiguration
             productionScanBudget = config.Bind("Production", "ScanEntriesPerFrame", 2048, new ConfigDescription("Maximum sector/object scan steps per frame when finding existing production after restart.", new AcceptableValueRange<int>(64, 16384)));
             productionExclude = config.Bind("Production", "ExcludedPrefabs", "", "Comma-separated exact prefab names excluded from automatic production anchors. Requires restart.");
             farmingEnabled = config.Bind("Farming", "Enabled", false, "Optional dedicated-server farming retunes (grow/respawn/restriction). Does not add cultivator recipes. Requires restart.");
-            farmingItemPlanting = config.Bind("Farming", "ItemPlanting", true, "Vanilla clients plant bushes and other pickable flora by dropping the matching harvest item on cultivated ground. No client mod.");
+            farmingItemPlanting = config.Bind("Farming", "ItemPlanting", true, "Vanilla clients plant bushes and other pickable flora by dropping the matching harvest item on cultivated ground. A stack plants a grid (cost items each) and is consumed.");
             farmingItemPlantCost = config.Bind("Farming", "ItemPlantCost", 5, new ConfigDescription("Harvest items consumed per planted flora object.", new AcceptableValueRange<int>(1, 100)));
             farmingItemPlantSpacing = config.Bind("Farming", "ItemPlantSpacing", 2f, new ConfigDescription("Minimum metres between same-type planted flora.", new AcceptableValueRange<float>(0.5f, 20f)));
             farmingItemPlantSettleSeconds = config.Bind("Farming", "ItemPlantSettleSeconds", 2f, new ConfigDescription("Seconds a drop must sit before it is planted, so it can still be picked up.", new AcceptableValueRange<float>(0f, 30f)));

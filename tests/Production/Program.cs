@@ -93,19 +93,27 @@ class Program
         ZNet.instance.peers.Add(planter);
         var planterChar=Add(11,"player"); planterChar.playerId=42;
         var berryDrop=Add(50,"Raspberry"); berryDrop.stack=5;
-        Check(FarmingSupport.TryPlantFromDrop(berryDrop,5,true,42,out var plantedMsg) && plantedMsg!=null && plantedMsg.Contains("Planted"),"Item planting did not place flora");
+        Check(FarmingSupport.TryPlantFromDrop(berryDrop,5,true,42,out var plantedMsg)==1 && plantedMsg!=null && plantedMsg.Contains("Planted"),"Item planting did not place flora");
         Check(!berryDrop.valid,"Planting did not consume the drop");
         ZDO plantedBush=null;
         foreach (var z in ZDOMan.instance.all.Values)
             if (z.GetPrefab()=="RaspberryBush".GetStableHashCode() && z.creator==42) plantedBush=z;
         Check(plantedBush!=null && plantedBush.creator==42,"Planted flora missing creator");
         var shortDrop=Add(51,"Raspberry",80); shortDrop.stack=4;
-        Check(!FarmingSupport.TryPlantFromDrop(shortDrop,4,true,42,out _),"Undersized stack planted");
+        Check(FarmingSupport.TryPlantFromDrop(shortDrop,4,true,42,out _)==0,"Undersized stack planted");
         Check(shortDrop.valid,"Undersized stack consumed");
         var wildDrop=Add(52,"Raspberry",90); wildDrop.stack=5;
-        Check(!FarmingSupport.TryPlantFromDrop(wildDrop,5,false,42,out var groundMsg) && groundMsg!=null && groundMsg.Contains("cultivated"),"Wild ground planting allowed");
+        Check(FarmingSupport.TryPlantFromDrop(wildDrop,5,false,42,out var groundMsg)==0 && groundMsg!=null && groundMsg.Contains("cultivated"),"Wild ground planting allowed");
         var closeDrop=Add(53,"Raspberry"); closeDrop.stack=5;
-        Check(!FarmingSupport.TryPlantFromDrop(closeDrop,5,true,42,out var spaceMsg) && spaceMsg!=null && spaceMsg.Contains("close"),"Spacing check skipped");
+        Check(FarmingSupport.TryPlantFromDrop(closeDrop,5,true,42,out _)==1,"Stack on occupied plot did not plant beside it");
+        Check(!closeDrop.valid,"Adjacent plant did not consume the drop");
+        var fieldDrop=Add(54,"Raspberry",200); fieldDrop.stack=50;
+        Check(FarmingSupport.TryPlantFromDrop(fieldDrop,50,true,42,out var manyMsg)==10 && manyMsg!=null && manyMsg.Contains("10"),"50 berries should plant 10 bushes");
+        Check(!fieldDrop.valid,"50-stack drop was not consumed");
+        int fieldBushes=0;
+        foreach (var z in ZDOMan.instance.all.Values)
+            if (z.GetPrefab()=="RaspberryBush".GetStableHashCode() && Math.Abs(z.pos.x-200)<20) fieldBushes++;
+        Check(fieldBushes==10,"50-berry field was not a 10-bush grid");
         Configuration.farmingEnabled.Value=false; Configuration.farmingPlaceAnywhere.Value=false;
         Configuration.farmingFloraRespawnMinutes.Value=0; Configuration.farmingCropGrowTimeMin.Value=0; Configuration.farmingCropGrowTimeMax.Value=0;
         ProductionAreas.Installed=false;Configuration.advanceEmptyTime.Value=true;
@@ -115,6 +123,7 @@ class Program
         ServerFeedback.ThreadBegin();ServerFeedback.End(false);ServerFeedback.ThreadEnd(null);ServerFeedback.Tick();Check(ServerFeedback.Status=="FAILED","Save failure misreported");
         ServerFeedback.ThreadBegin();ServerFeedback.ThreadEnd(null);ServerFeedback.Tick();Check(ServerFeedback.Status.Contains("unconfirmed"),"Early save exit falsely successful");
         ServerFeedback.End(true);ServerFeedback.Tick();Check(ServerFeedback.Status.Contains("unconfirmed"),"Unrelated save polluted world status");
+        ZDOMan.instance.forced.Clear();
         var drop=new ItemDrop{m_nview=new(){zdo=new ZDO{m_uid=42,owner=5}}};ZNet.instance.peers.Add(peer);
         Call(typeof(InteractionReliability.PickupOwnershipDelivery),"Postfix",drop,5L,99L);
         Check(ZDOMan.instance.forced.Count==1,"Pickup ownership grant not prioritised");

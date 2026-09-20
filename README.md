@@ -6,9 +6,14 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.3**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.4**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.4 — Consume dropped harvest into a flora grid
+
+- A dropped stack on cultivated ground plants a whole grid (50 berries → 10 bushes at the default cost of 5) and **consumes those items**. Leftovers under the cost stay in the drop.
+- Vanilla clients see the pile shrink or disappear. Planting no longer leaves the original stack to pick up again.
 
 ### 1.10.3 — No persistent base loading
 
@@ -147,8 +152,8 @@ Clients need nothing.
 | `[PortalHub] AutoNameNewPortals` | false | Auto-name empty portal tags before pairing. |
 | `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | Biome name + unique integer. |
 | `[Farming] Enabled` | false | Optional server-side grow/respawn/restriction retunes. No cultivator recipes. Restart required. |
-| `[Farming] ItemPlanting` | true | Drop matching harvest items on cultivated ground to plant bushes/mushrooms/flowers. Vanilla clients. |
-| `[Farming] ItemPlantCost` / `ItemPlantSpacing` / `ItemPlantSettleSeconds` | 5 / 2 / 2 | Items consumed per plant; minimum metres between same-type flora; seconds a drop must sit before planting. |
+| `[Farming] ItemPlanting` | true | Drop matching harvest items on cultivated ground to plant a grid of bushes/mushrooms/flowers. Consumes the stack. Vanilla clients. |
+| `[Farming] ItemPlantCost` / `ItemPlantSpacing` / `ItemPlantSettleSeconds` | 5 / 2 / 2 | Items consumed per plant; grid spacing in metres; seconds a drop must sit before planting. |
 | `[Farming] PlaceAnywhere` | false | Relax plant roof, growth-space and ground checks while Farming is enabled. Also allows item planting off cultivated ground. |
 | `[Farming] RequireSunlight` / `RequireGrowthSpace` | true / true | When false (and Farming enabled), skip the matching plant check. |
 | `[Farming] GrowSpaceScale` | 0.4 | Server grow-radius multiplier for plants/trees. Applies to existing saplings. 1 is vanilla. |
@@ -336,8 +341,8 @@ A raid can start/spawn only with a connected character in its configured event r
 | `[PortalHub] AutoNameNewPortals` | false | Name empty tags using AutoNameFormat before pairing. |
 | `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | `{0}`=biome name, `{1}`=unique integer. |
 | `[Farming] Enabled` | false | Optional server grow/respawn/restriction retunes; no cultivator recipes; restart required. |
-| `[Farming] ItemPlanting` | true | Drop harvest items on cultivated ground to plant matching flora; vanilla clients. |
-| `[Farming] ItemPlantCost` / `ItemPlantSpacing` / `ItemPlantSettleSeconds` | 5 / 2 / 2 | Items per plant; same-type spacing in metres; settle delay in seconds. |
+| `[Farming] ItemPlanting` | true | Drop harvest items on cultivated ground to plant a matching flora grid and consume the stack; vanilla clients. |
+| `[Farming] ItemPlantCost` / `ItemPlantSpacing` / `ItemPlantSettleSeconds` | 5 / 2 / 2 | Items per plant; grid spacing in metres; settle delay in seconds. |
 | `[Farming] PlaceAnywhere` | false | Relax plant roof, growth-space and ground checks while Farming is enabled. Also allows item planting off cultivated ground. |
 | `[Farming] RequireSunlight` / `RequireGrowthSpace` | true / true | When false (and Farming enabled), skip the matching plant check. |
 | `[Farming] GrowSpaceScale` | 0.4 | Server grow-radius multiplier for plants/trees. Applies to existing saplings. 1 is vanilla. |

@@ -1,3 +1,9 @@
+## 1.10.4 — Consume dropped harvest into a flora grid
+
+- Dropping a stack on cultivated ground plants as many bushes as the stack pays for (50 blueberries → 10 bushes at cost 5) in a spaced grid, then destroys or reduces the drop so it cannot be farmed infinitely.
+- The server takes ownership of the drop, updates `ItemDrop` stack, and force-sends the change so vanilla clients see the berries vanish.
+- HUD messages report planted count, too-few items, or missing cultivated ground.
+
 ## 1.10.3 — No persistent base loading
 
 - Stop keeping bases, farms and stations loaded while nobody is nearby. The production supporting ring was still loading adjacent dungeons.
