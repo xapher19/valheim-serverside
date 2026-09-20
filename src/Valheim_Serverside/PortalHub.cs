@@ -69,12 +69,6 @@ namespace Valheim_Serverside
 			Reconcile();
 		}
 
-		internal static bool IsHubWear(WearNTear wear)
-		{
-			if (!wear || !wear.m_nview || !wear.m_nview.IsValid()) return false;
-			return IsHubObject(wear.m_nview.GetZDO());
-		}
-
 		private static void EnsureOrigin()
 		{
 			if (originReady) return;
