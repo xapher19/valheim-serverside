@@ -271,8 +271,8 @@ namespace Valheim_Serverside
 					NotifyAll(unpaired.Count == 0
 						? "Home portal is ready. Name an outpost portal to add a destination, then walk through the untagged home portal."
 						: "Home portal is ready. Walk through it to pick a destination.");
+					Connect();
 				}
-				Connect();
 				WireHall();
 				return;
 			}
@@ -318,10 +318,12 @@ namespace Valheim_Serverside
 			if (lobby == null || !lobby.IsValid())
 				return;
 
+			// Only dirty / force-send when a link actually changes. Re-applying the same
+			// connection every scan makes vanilla clients replay the portal activate VFX.
+			bool changed = false;
 			foreach (ZDO gateway in gateways)
-				SetPortalConnection(gateway, lobby.m_uid);
-			SetPortalConnection(lobby, home.m_uid);
-			PublishPortal(lobby, gateways, portals);
+				changed |= SetPortalConnection(gateway, lobby.m_uid);
+			changed |= SetPortalConnection(lobby, home.m_uid);
 
 			foreach (ZDO zdo in portals)
 			{
@@ -329,20 +331,25 @@ namespace Valheim_Serverside
 				ZDOID connected = zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
 				ZDO other = connected.IsNone() ? null : ZDOMan.instance.GetZDO(connected);
 				if (other != null && other.IsValid() && IsHubObject(other))
-					SetPortalConnection(zdo, home.m_uid);
+					changed |= SetPortalConnection(zdo, home.m_uid);
 			}
+			if (changed)
+				PublishPortal(lobby, gateways, portals);
 		}
 
-		private static void SetPortalConnection(ZDO zdo, ZDOID target)
+		private static bool SetPortalConnection(ZDO zdo, ZDOID target)
 		{
-			if (zdo == null || !zdo.IsValid()) return;
+			if (zdo == null || !zdo.IsValid()) return false;
+			ZDOID current = zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
+			if (current.Equals(target)) return false;
 			if (Game.instance)
 			{
 				Game.instance.ForceSetConnection(zdo, target);
-				return;
+				return true;
 			}
 			zdo.SetOwner(ZDOMan.GetSessionID());
 			zdo.SetConnection(ZDOExtraData.ConnectionType.Portal, target);
+			return true;
 		}
 
 		internal static bool TryInterceptTeleport(TeleportWorld portal, Player player)
@@ -423,7 +430,7 @@ namespace Valheim_Serverside
 		private static bool NearPortal(Vector3 pos, Vector3 portal, float radiusSq)
 		{
 			float dx = portal.x - pos.x, dz = portal.z - pos.z;
-			return dx * dx + dz * dz <= radiusSq && Math.Abs(portal.y - pos.y) <= 4f;
+			return dx * dx + dz * dz <= radiusSq && Math.Abs(portal.y - pos.y) <= 2.5f;
 		}
 
 		private static void TryEnterGateways()
@@ -432,7 +439,8 @@ namespace Valheim_Serverside
 			ZDO lobby = FindHubLobby();
 			if (lobby == null || !lobby.IsValid()) return;
 			double now = Time.realtimeSinceStartupAsDouble;
-			const float radiusSq = 4f * 4f;
+			// Tight walk-into trigger; 4 m was large enough to catch nearby builds / standing still.
+			const float radiusSq = 1.5f * 1.5f;
 			foreach (ZNetPeer peer in ZNet.instance.GetPeers())
 			{
 				if (peer == null || !peer.IsReady()) continue;

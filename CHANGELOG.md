@@ -1,3 +1,8 @@
+## 1.10.8 — Portal hall hotfix
+
+- Shrink the untagged home-portal enter radius from 4 m to 1.5 m so nearby builds no longer count as walking in.
+- Stop re-applying and force-sending unchanged portal connections every scan. That was making vanilla clients replay the portal activate animation every few seconds.
+
 ## 1.10.7 — Persistent planted flora and a reachable portal hall
 
 - Mark drop-planted bushes as persistent world objects and dirty their save chunk. Valheim 1.0 `CreateNewZDO` leaves that flag off, so the plants vanished on sleep or restart.
