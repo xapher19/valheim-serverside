@@ -1,9 +1,13 @@
-﻿using FeaturesLib;
+using FeaturesLib;
 using HarmonyLib;
-using MonoMod.Cil;
 using PluginConfiguration;
 
-using OC = Mono.Cecil.Cil.OpCodes;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Reflection;
+using UnityEngine;
+
 
 namespace Valheim_Serverside.Features
 {
@@ -16,34 +20,57 @@ namespace Valheim_Serverside.Features
 
 		public static int GetMaxCreatedPerFrame()
 		{
-			return Configuration.maxObjectsPerFrame.Value;
+			int max = Math.Max(1, Configuration.maxObjectsPerFrame.Value);
+            if (!Configuration.adaptiveLoading.Value) return max;
+            return budget.Next(max, Configuration.loadingBudgetMs.Value, Time.unscaledDeltaTime, Math.Max(30, Application.targetFrameRate));
 		}
 
-		[HarmonyPatch(typeof(ZNetScene), "CreateObjects")]
-		public class CreateObjects_Patch
-		/*
-			Set the local variable `maxCreatedPerFrame` to the result of `GetMaxCreatedPerFrame`.
+        private static readonly CreationBudget budget = new CreationBudget();
+        private static int currentAllowance = 10;
 
-			Setting this higher allows the world to be loaded faster if the server CPU can keep up.
+        // Vanilla raises the allowance for huge backlogs. Respect the configured/adaptive cap.
+        public static int CapBacklog(int backlog, int allowance) => Math.Max(1, allowance);
 
-			Originally set to 100, see `Configuration.maxObjectsPerFrame` for the new value.
-		 */
-		{
-			public static void ILManipulator(ILContext il)
-			{
-				new ILCursor(il)
-					.GotoNext(MoveType.Before,
-						i => i.MatchLdarg(0),
-						i => i.MatchLdarg(1),
-						i => i.MatchLdloc(0),
-						i => i.MatchLdloca(1),
-						i => i.MatchCall<ZNetScene>("CreateObjectsSorted")
-					)
-					.Emit(OC.Call, AccessTools.Method(
-						typeof(MaxObjectsPerFrame),
-						nameof(MaxObjectsPerFrame.GetMaxCreatedPerFrame)))
-					.Emit(OC.Stloc_0);
-			}
-		}
-	}
+        [HarmonyPatch(typeof(ZNetScene), "CreateObjectsSorted")]
+        public static class BacklogCap
+        {
+            static void Prefix(ref int __1) { __1 = currentAllowance; }
+            static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> source)
+            {
+                var codes = new List<CodeInstruction>(source);
+                MethodInfo max = AccessTools.Method(typeof(Mathf), "Max", new[] { typeof(int), typeof(int) });
+                int found = 0;
+                foreach (var code in codes)
+                    if (code.Calls(max)) { code.operand = AccessTools.Method(typeof(MaxObjectsPerFrame), nameof(CapBacklog)); found++; }
+                if (found != 1) throw new InvalidOperationException("Object backlog cap changed; expected one integer Max call.");
+                return codes;
+            }
+        }
+
+        [HarmonyPatch(typeof(ZNetScene), "CreateDistantObjects")]
+        public static class DistantCap
+        {
+            static bool Prefix(ref int __1, int __2)
+            {
+                __1 = currentAllowance;
+                if (__2 >= __1) return false;
+                // Vanilla stops on > rather than >=; compensate for its extra object.
+                __1 = Math.Max(0, __1 - 1);
+                return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(ZNetScene), "CreateObject", new[] { typeof(ZDO) })]
+        public static class CreationCost
+        {
+            static void Prefix(out long __state) { __state = Stopwatch.GetTimestamp(); }
+            static void Postfix(long __state) { budget.Observe((Stopwatch.GetTimestamp() - __state) * 1000.0 / Stopwatch.Frequency); }
+        }
+
+        [HarmonyPatch(typeof(ZNetScene), "CreateObjects")]
+        public static class CreateObjects_Patch
+        {
+            static void Prefix() { currentAllowance = GetMaxCreatedPerFrame(); }
+        }
+    }
 }

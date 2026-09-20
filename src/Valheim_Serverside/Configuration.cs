@@ -1,10 +1,14 @@
-﻿using BepInEx.Configuration;
+using BepInEx.Configuration;
 
 namespace PluginConfiguration
 {
 	public class Configuration
 	{
 		public static ConfigEntry<bool> modEnabled;
+        public static ConfigEntry<bool> productionEnabled, productionLivestock, advanceEmptyTime, adaptiveLoading, saveAnnouncements;
+        public static ConfigEntry<int> productionScanBudget, idleFps;
+        public static ConfigEntry<float> loadingBudgetMs, sendBudgetMs;
+        public static ConfigEntry<string> productionExclude;
         public static ConfigEntry<bool> diagnosticsEnabled, diagnosticAlerts, interactionDiagnostics;
         public static ConfigEntry<int> diagnosticReportMinutes, alertDurationSeconds, alertCooldownSeconds, lowFpsThreshold;
 
@@ -34,7 +38,17 @@ namespace PluginConfiguration
 
 		public static void Load(ConfigFile config)
 		{
-			diagnosticsEnabled = config.Bind("Diagnostics", "Enabled", true, "Observe server performance and per-player sends without changing gameplay. Needs restart.");
+			productionEnabled = config.Bind("Production", "Enabled", true, "Keep generated zones around processing stations, planted crops and beehives active. More CPU/RAM; requires restart. Raid starts and raid spawns require a real nearby player.");
+            productionLivestock = config.Bind("Production", "Livestock", true, "Keep already-tamed animals, their young and hatchable tame-animal eggs active. Vanilla food, heat and population limits remain. Requires restart.");
+            advanceEmptyTime = config.Bind("Production", "AdvanceTimeWhenEmpty", true, "Continue the world clock while empty when production is active. Days/weather also advance. No catch-up while the server is stopped.");
+            productionScanBudget = config.Bind("Production", "ScanEntriesPerFrame", 2048, new ConfigDescription("Maximum sector/object scan steps per frame when finding existing production after restart.", new AcceptableValueRange<int>(64, 16384)));
+            productionExclude = config.Bind("Production", "ExcludedPrefabs", "", "Comma-separated exact prefab names excluded from automatic production anchors. Requires restart.");
+            adaptiveLoading = config.Bind("MaxObjectsPerFrame", "Adaptive", true, "Adjust object creation allowance using measured creation costs and frame pressure, bounded by MaxObjects.");
+            loadingBudgetMs = config.Bind("MaxObjectsPerFrame", "BudgetMs", 3f, new ConfigDescription("Soft object-creation time budget. A single expensive object cannot be interrupted.", new AcceptableValueRange<float>(0.5f, 20f)));
+            sendBudgetMs = config.Bind("Performance", "SendBudgetMs", 3f, new ConfigDescription("Soft budget for scheduled sends per frame; rotate fairly and retain bounded debt. A single send cannot be interrupted. 0 disables.", new AcceptableValueRange<float>(0f, 20f)));
+            idleFps = config.Bind("Performance", "IdleTargetFps", 30, new ConfigDescription("Frame cap with no connected peers; restores configured target as soon as a peer connects. 0 disables. Does not pause production or physics.", new AcceptableValueRange<int>(0, 240)));
+            saveAnnouncements = config.Bind("Server", "SaveAnnouncements", true, "Show save start/result and console shutdown announcements to vanilla clients.");
+            diagnosticsEnabled = config.Bind("Diagnostics", "Enabled", true, "Observe server performance and per-player sends without changing gameplay. Needs restart.");
             diagnosticAlerts = config.Bind("Diagnostics", "Alerts", true, "Warn on sustained low FPS or continuously blocked send attempts, after a 60-second startup/join grace.");
             interactionDiagnostics = config.Bind("Diagnostics", "InteractionTrace", false, "Log selected interaction and missing object RPC dispatches. At most one trace per two seconds globally. No payloads; not end-to-end latency.");
             diagnosticReportMinutes = config.Bind("Diagnostics", "ReportMinutes", 5, new ConfigDescription("Summary interval; 0 disables reports but keeps status and alerts.", new AcceptableValueRange<int>(0, 60)));

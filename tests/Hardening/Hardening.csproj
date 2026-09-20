@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="../../src/Valheim_Serverside/WorkBudgets.cs" />
     <Compile Include="Stubs.cs" />
     <Compile Include="../../src/Valheim_Serverside/Patching.cs" />
     <Compile Include="../../src/Valheim_Serverside/FeaturesLib.cs" />

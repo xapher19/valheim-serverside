@@ -6,9 +6,21 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.9.4**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.0**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.0 — Persistent production and bounded server work
+
+- Automatically keep generated areas around smelters (including kiln/windmill/spinning-wheel variants), fermenters, cooking stations, planted crops, beehives, sap collectors, tamed livestock and hatchable tame-animal eggs loaded on the server. Mature crop pickables remain anchors; planted trees stop being anchors when grown.
+- Rebuild the production index incrementally from saved world objects after restart, discover newly placed stations, and release areas after their last anchor is removed. No extra world-save format or client mod.
+- Require a connected player's character near the event for raid starts and raid spawns. Production anchors never count as players. Raid guards and production hooks install atomically; failed guards disable production, while Core retains its own atomic rollback.
+- Optionally advance world time with nobody connected (enabled by default). This advances days/weather as well as production. No catch-up while the server is stopped.
+- Adapt object-creation allowance to measured costs and frame pressure, enforce its cap for large backlogs, and avoid duplicate sector searches for players in the same zone.
+- Budget round-robin world sends across frames, keeping bounded unserved work for the next frame instead of a catch-up burst. Existing vanilla packets and transport limits remain unchanged.
+- Prioritise successful dropped-item ownership grants in the next world update, as vanilla already does for chests. No automatic repeated pickup or inventory actions.
+- Lower the empty-server frame cap to 30 by default and restore the active target on connection; physics and production continue.
+- Add save-start/result and console-shutdown announcements. Status distinguishes the game's save commit result from mere save-thread completion; this is not independent disk verification.
 
 ### 1.9.4 — Northwatch
 
@@ -264,3 +276,28 @@ miss an individual interaction by design. Enable only while investigating.
 
 These additions do not change send budgets, simulation distance, update priority,
 boat physics or garbage collection. No client installation is required.
+
+## Persistent production (1.10.0)
+
+Enabled by default. Northwatch recognises registered prefabs by production components, including modded prefabs using the same components. It keeps the anchor's 64-metre zone and one surrounding ring of already-generated zones loaded for terrain, roofs, crop spacing and output physics. Overlapping areas share zones. Existing farms and stations are discovered without a visit after restart; the initial scan and zone loading are gradual, not instantaneous. New crops/stations are normally recognised within a second; a periodic rescan reconciles the world index.
+
+There is no arbitrary area-count limit. Many scattered sites therefore **increase CPU and RAM usage**. The `status` command reports anchor/zone counts. Removing the last station/crop releases its area through the normal unloading path, unless players or another production area still need it. Exclude prefab types in configuration if necessary.
+
+Production keeps vanilla fuel, ingredient, roof, biome, growth, output-capacity and collection rules. It does not automatically refuel machines, harvest crops or tap fermenters. Cooking can burn food, fires use fuel, and dropped outputs retain vanilla despawn rules. Mature trees do not independently anchor an area. Already-tamed livestock, their young and hatchable tame-animal eggs anchor areas by default; wild animals do not. Animal feeding, breeding population caps and egg warmth/roof rules remain unchanged. Moving tamed animals move their supporting area. Ordinary creatures and structures in those zones also remain loaded: **raid proximity guards are not general offline damage immunity**, and existing enemies are not deleted. There are no synthetic players, so nearby-player spawning checks retain their meaning.
+
+A raid can start/spawn only with a connected character in its configured event range (typically the vanilla event radius), in the same outdoor height band. Leaving stops further raid spawning; the existing event's lifecycle and already-spawned creatures otherwise follow vanilla behaviour. Manually requested random raids are subject to the same start guard. Forced-event spawns also require real nearby players.
+
+| Setting | Default | Effect |
+|---|---|---|
+| `[Production] Enabled` | true | Persistent production plus atomic raid guards; restart required. |
+| `[Production] Livestock` | true | Tamed animals, their young and tame-animal eggs also anchor areas; restart required. |
+| `[Production] AdvanceTimeWhenEmpty` | true | World time, including day/weather and production timers, advances with no players. No offline catch-up. |
+| `[Production] ExcludedPrefabs` | empty | Comma-separated exact prefab names that must not anchor production; restart required. |
+| `[Production] ScanEntriesPerFrame` | 2048 | Maximum scan steps per frame, also limited to roughly 2 ms. |
+| `[MaxObjectsPerFrame] Adaptive` | true | Adjust creation allowance to measured cost and frame pressure. |
+| `[MaxObjectsPerFrame] BudgetMs` | 3 | Soft creation budget; individual operations cannot be interrupted. `MaxObjects` remains the ceiling. |
+| `[Performance] SendBudgetMs` | 3 | Soft scheduled-send budget per frame; 0 disables the budget. |
+| `[Performance] IdleTargetFps` | 30 | Empty-server cap, never above active target; 0 disables. Requires a positive `ServerTargetFps`. |
+| `[Server] SaveAnnouncements` | true | Vanilla in-game save/result and console-shutdown messages. |
+
+Validation includes regression tests and hook installation against real game assemblies. Live gameplay validation is still required for unattended production, mod interactions and PS5 behaviour. Installation: stop the server, back up the world, replace the existing Northwatch DLL, then inspect startup patch health and `status`. Set `[Production] Enabled = false` and restart to return to player-area-only simulation.

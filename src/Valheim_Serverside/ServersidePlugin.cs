@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Logging;
 using FeaturesLib;
 using HarmonyLib;
@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.9.4";
+		public const string PluginVersion = "1.10.0";
 
 		private static ServersidePlugin context;
 
@@ -67,6 +67,9 @@ namespace Valheim_Serverside
 
 			AvailableFeatures availableFeatures = new AvailableFeatures();
 			availableFeatures.AddFeature(new Features.Core());
+            availableFeatures.AddFeature(new Features.Production());
+            availableFeatures.AddFeature(new Features.SaveFeedback());
+            availableFeatures.AddFeature(new Features.InteractionReliability());
 			availableFeatures.AddFeature(new Features.MaxObjectsPerFrame());
 			availableFeatures.AddFeature(new Features.Networking());
 			availableFeatures.AddFeature(new Features.Performance());
@@ -103,7 +106,9 @@ namespace Valheim_Serverside
 			}
 			if (installed)
 			{
-				Features.TargetFpsVerifier.Tick(Time.realtimeSinceStartupAsDouble);
+				ProductionAreas.Tick();
+                ServerFeedback.Tick();
+                Features.TargetFpsVerifier.Tick(Time.realtimeSinceStartupAsDouble);
 				Features.PerformanceStats.Frame();
                 DiagnosticRuntime.Tick();
 				if (Configuration.adminChatEnabled.Value)
@@ -166,6 +171,8 @@ namespace Valheim_Serverside
 		private bool PatchFeatures(AvailableFeatures availableFeatures, HarmonyFeaturesPatcher patcher)
 		{
 			Features.Performance.ClearHookHealth();
+            ProductionAreas.Installed = false;
+            ServerFeedback.Installed = false;
             foreach (IFeature candidate in availableFeatures._features)
                 foreach (Type hook in candidate.GetType().GetNestedTypes())
                     DiagnosticRuntime.HookState(hook, candidate.FeatureEnabled() ? "PENDING" : "DISABLED");
@@ -199,7 +206,7 @@ namespace Valheim_Serverside
 				Harmony featureHarmony = new Harmony($"{PluginGUID}.{featureName}");
 				try
 				{
-					patcher.PatchAll(feature.GetType().GetNestedTypes(), featureHarmony, verify: feature is Features.Core);
+					patcher.PatchAll(feature.GetType().GetNestedTypes(), featureHarmony, verify: feature is Features.Core || feature is Features.Production || feature is Features.SaveFeedback || feature is Features.InteractionReliability || feature is Features.MaxObjectsPerFrame);
 					if (feature is Features.Core)
 					{
 						foreach (Type hook in feature.GetType().GetNestedTypes())
@@ -209,6 +216,8 @@ namespace Valheim_Serverside
 					}
 					foreach (Type hook in feature.GetType().GetNestedTypes()) DiagnosticRuntime.HookState(hook, "ACTIVE");
                     applied.Add(featureHarmony);
+                    if (feature is Features.Production) ProductionAreas.Installed = true;
+                    if (feature is Features.SaveFeedback) ServerFeedback.Installed = true;
 				}
 				catch (Exception e)
 				{
@@ -223,6 +232,8 @@ namespace Valheim_Serverside
 						}
 						harmony.UnpatchSelf();
                         DiagnosticRuntime.Rollback();
+                        ProductionAreas.Installed = false;
+                        ServerFeedback.Installed = false;
 						Features.Performance.ClearHookHealth();
 						Logger.LogError("Patch health: Core FAILED; all simulation patches rolled back. Performance and FPS verification will not start.");
 						return false;
