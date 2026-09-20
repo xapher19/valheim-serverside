@@ -97,8 +97,8 @@ namespace Valheim_Serverside
 		private static ItemDrop DropOf(ZDO zdo)
 		{
 			if (!ZNetScene.instance) return null;
-			GameObject inst = ZNetScene.instance.FindInstance(zdo);
-			return inst ? inst.GetComponent<ItemDrop>() : null;
+			ZNetView view = ZNetScene.instance.FindInstance(zdo);
+			return view ? view.GetComponent<ItemDrop>() : null;
 		}
 
 		private static void Notify(ZNetPeer peer, string text)
