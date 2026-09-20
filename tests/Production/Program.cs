@@ -98,7 +98,7 @@ class Program
         ZDO plantedBush=null;
         foreach (var z in ZDOMan.instance.all.Values)
             if (z.GetPrefab()=="RaspberryBush".GetStableHashCode() && z.creator==42) plantedBush=z;
-        Check(plantedBush!=null && plantedBush.creator==42,"Planted flora missing creator");
+        Check(plantedBush!=null && plantedBush.creator==42 && plantedBush.Persistent,"Planted flora missing creator or persistence");
         var shortDrop=Add(51,"Raspberry",80); shortDrop.stack=4;
         Check(FarmingSupport.TryPlantFromDrop(shortDrop,4,true,42,out _)==0,"Undersized stack planted");
         Check(shortDrop.valid,"Undersized stack consumed");
@@ -140,6 +140,7 @@ class Program
         var mountains=new ZDO{m_uid=202,prefab="portal_wood".GetStableHashCode(),pos=new Vector3(9000,0,0)};
         mountains.Set(ZDOVars.s_tag,"Mountains");
         ZDOMan.instance.all[mountains.m_uid]=mountains;
+        ZDOMan.instance.m_portalObjects[1]=new List<ZDO>{mountains};
         PortalHub.Installed=true;
         Time.realtimeSinceStartupAsDouble=200;
         PortalHub.Tick();

@@ -1,3 +1,9 @@
+## 1.10.7 — Persistent planted flora and a reachable portal hall
+
+- Mark drop-planted bushes as persistent world objects and dirty their save chunk. Valheim 1.0 `CreateNewZDO` leaves that flag off, so the plants vanished on sleep or restart.
+- Read 1.0's portal index (`GetPortalList` / `m_portalObjects` dictionary), stop pairing empty tags with each other, and teleport vanilla clients with `Chat.TeleportPlayer`.
+- Move the destination hall well inside the map (not onto the world-edge kill ring) and keep its pieces persistent so the home portal can actually arrive there.
+
 ## 1.10.6 — Find every world portal for the destination hall
 
 - Scan all saved portals, not only those in loaded zones, so tagged outposts still appear when nobody is standing next to them.

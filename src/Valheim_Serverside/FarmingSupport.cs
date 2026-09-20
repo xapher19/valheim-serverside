@@ -258,7 +258,14 @@ namespace Valheim_Serverside
 			zdo.SetPrefab(floraHash);
 			zdo.SetOwner(ZDOMan.GetSessionID());
 			zdo.Set(ZDOVars.s_creator, creator);
+			zdo.Set(ZDOVars.s_picked, false);
+			// CreateNewZDO leaves Persistent unset (ZDO.Initialize clears flags). Vegetation
+			// prefabs do not copy ZNetView.m_persistent onto an existing ZDO, so the bush is
+			// omitted from the world save and destroyed when the sector unloads (sleep/restart).
+			zdo.Persistent = true;
 			ZNetScene.instance.CreateObject(zdo);
+			zdo.Persistent = true;
+			ZDOMan.instance.SetDirtySector(zdo);
 			return zdo;
 		}
 

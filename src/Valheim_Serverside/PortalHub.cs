@@ -30,7 +30,9 @@ namespace Valheim_Serverside
 		private static readonly HashSet<int> portalPrefabs = new HashSet<int>();
 		private static readonly List<string> portalPrefabNames = new List<string>();
 		private static MethodInfo getPortalsMethod;
+		private static MethodInfo getPortalListMethod;
 		private static MethodInfo getAllPrefabsMethod;
+		private static FieldInfo portalObjectsField;
 		private static FieldInfo outsideSectorField;
 		private static FieldInfo tagHashField;
 		private static bool portalApisResolved;
@@ -65,10 +67,9 @@ namespace Valheim_Serverside
 		private static void EnsureOrigin()
 		{
 			if (originReady) return;
-			float edge = 10500f;
-			if (WorldGenerator.instance != null && WorldGenerator.waterEdge > 512f)
-				edge = WorldGenerator.waterEdge;
-			hubOrigin = new Vector3(edge - 6f * 64f, 2500f, 0f);
+			// Well inside the playable map, high enough to miss builds. The previous origin sat
+			// on the world-edge kill ring, so vanilla clients that did arrive were already dying.
+			hubOrigin = new Vector3(40f * 64f, 1800f, 40f * 64f);
 			originReady = true;
 		}
 
@@ -126,9 +127,10 @@ namespace Valheim_Serverside
 			if (portalApisResolved) return;
 			portalApisResolved = true;
 			const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-			getPortalsMethod = typeof(ZDOMan).GetMethod("GetPortals", flags, null, Type.EmptyTypes, null)
-				?? typeof(ZDOMan).GetMethod("GetPortalList", flags, null, Type.EmptyTypes, null);
+			getPortalsMethod = typeof(ZDOMan).GetMethod("GetPortals", flags, null, Type.EmptyTypes, null);
+			getPortalListMethod = typeof(ZDOMan).GetMethod("GetPortalList", flags, null, Type.EmptyTypes, null);
 			getAllPrefabsMethod = typeof(ZDOMan).GetMethod("GetAllZDOsWithPrefab", flags, null, new[] { typeof(string), typeof(List<ZDO>) }, null);
+			portalObjectsField = typeof(ZDOMan).GetField("m_portalObjects", flags);
 			outsideSectorField = typeof(ZDOMan).GetField("m_objectsByOutsideSector", flags);
 			tagHashField = typeof(ZDOVars).GetField("s_tagHash", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 		}
@@ -150,12 +152,13 @@ namespace Valheim_Serverside
 		private static void CollectPortals(Action<ZDO> take)
 		{
 			if (ZDOMan.instance == null || take == null) return;
+			// 1.0 GetPortals() is Dictionary<SectorIndex, List<ZDO>>, not IEnumerable<ZDO>.
+			if (getPortalListMethod != null)
+				TakePortalResult(getPortalListMethod.Invoke(ZDOMan.instance, null), take);
 			if (getPortalsMethod != null)
-			{
-				object result = getPortalsMethod.Invoke(ZDOMan.instance, null);
-				if (result is IEnumerable<ZDO> found)
-					foreach (ZDO zdo in found) take(zdo);
-			}
+				TakePortalResult(getPortalsMethod.Invoke(ZDOMan.instance, null), take);
+			if (portalObjectsField != null)
+				TakePortalResult(portalObjectsField.GetValue(ZDOMan.instance), take);
 			if (getAllPrefabsMethod != null)
 			{
 				foreach (string name in portalPrefabNames)
@@ -167,13 +170,25 @@ namespace Valheim_Serverside
 			}
 			CollectSectorBuckets(ZDOMan.instance.m_objectsBySector, take);
 			if (outsideSectorField != null)
+				TakePortalResult(outsideSectorField.GetValue(ZDOMan.instance), take);
+		}
+
+		private static void TakePortalResult(object result, Action<ZDO> take)
+		{
+			if (result == null || take == null) return;
+			if (result is IEnumerable<ZDO> found)
 			{
-				object outside = outsideSectorField.GetValue(ZDOMan.instance);
-				if (outside is IDictionary map)
+				foreach (ZDO zdo in found) take(zdo);
+				return;
+			}
+			if (result is IDictionary map)
+			{
+				foreach (object value in map.Values)
 				{
-					foreach (object value in map.Values)
-						if (value is List<ZDO> bucket)
-							for (int i = 0; i < bucket.Count; i++) take(bucket[i]);
+					if (value is IEnumerable<ZDO> bucket)
+						foreach (ZDO zdo in bucket) take(zdo);
+					else if (value is ZDO zdo)
+						take(zdo);
 				}
 			}
 		}
@@ -321,8 +336,38 @@ namespace Valheim_Serverside
 		private static void SetPortalConnection(ZDO zdo, ZDOID target)
 		{
 			if (zdo == null || !zdo.IsValid()) return;
+			if (Game.instance)
+			{
+				Game.instance.ForceSetConnection(zdo, target);
+				return;
+			}
 			zdo.SetOwner(ZDOMan.GetSessionID());
 			zdo.SetConnection(ZDOExtraData.ConnectionType.Portal, target);
+		}
+
+		internal static bool TryInterceptTeleport(TeleportWorld portal, Player player)
+		{
+			if (!Enabled || !portal || !player || !portal.m_nview || !portal.m_nview.IsValid()) return false;
+			ZDO zdo = portal.m_nview.GetZDO();
+			if (zdo == null || IsHubObject(zdo) || !IsGateway(zdo)) return false;
+			ZDO lobby = FindHubLobby();
+			if (lobby == null || !lobby.IsValid()) return false;
+			ZNetPeer peer = PeerOfPlayer(player);
+			if (peer == null) return false;
+			lastEnter[peer.m_uid] = Time.realtimeSinceStartupAsDouble;
+			PublishToPeer(peer, lobby);
+			TeleportPeer(peer, lobby);
+			Notify(peer, "Choose a destination.");
+			return true;
+		}
+
+		private static ZNetPeer PeerOfPlayer(Player player)
+		{
+			if (player == null || !player.m_nview || !player.m_nview.IsValid() || ZNet.instance == null) return null;
+			ZDOID id = player.m_nview.GetZDO().m_uid;
+			foreach (ZNetPeer peer in ZNet.instance.GetPeers())
+				if (peer != null && peer.m_characterID.Equals(id)) return peer;
+			return null;
 		}
 
 		private static void RememberGateways(List<ZDO> gateways)
@@ -449,15 +494,18 @@ namespace Valheim_Serverside
 		{
 			if (peer == null || dest == null || !dest.IsValid()) return;
 			if (ZDOMan.instance != null)
+			{
+				ZDOMan.instance.ForceSendZDO(dest.m_uid);
 				ZDOMan.instance.ForceSendZDO(peer.m_uid, dest.m_uid);
+			}
 			Quaternion rot = dest.GetRotation();
-			Vector3 pos = dest.GetPosition() + rot * Vector3.forward * 1.5f + Vector3.up * 0.2f;
+			Vector3 pos = dest.GetPosition() + rot * Vector3.forward * 1.5f + Vector3.up * 0.5f;
 			ZDO character = ZDOMan.instance != null ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
 			if (character != null && character.IsValid()) character.SetPosition(pos);
-			Player player = PlayerFromPeer(peer);
 			try
 			{
-				if (player) player.TeleportTo(pos, rot, true);
+				if (Chat.instance)
+					Chat.instance.TeleportPlayer(peer.m_uid, pos, rot, true);
 				else if (ZRoutedRpc.instance != null)
 					ZRoutedRpc.instance.InvokeRoutedRPC(peer.m_uid, "RPC_TeleportPlayer", pos, rot, true);
 			}
@@ -465,17 +513,6 @@ namespace Valheim_Serverside
 			{
 				ServersidePlugin.logger.LogWarning("Portal teleport failed: " + e.GetType().Name);
 			}
-		}
-
-		private static Player PlayerFromPeer(ZNetPeer peer)
-		{
-			if (peer == null) return null;
-			foreach (Player player in Player.GetAllPlayers())
-			{
-				if (!player || !player.m_nview || !player.m_nview.IsValid()) continue;
-				if (player.m_nview.GetZDO().m_uid.Equals(peer.m_characterID)) return player;
-			}
-			return null;
 		}
 
 		private static void NotifyAll(string text)
@@ -648,7 +685,12 @@ namespace Valheim_Serverside
 			zdo.SetRotation(rot);
 			zdo.SetOwner(ZDOMan.GetSessionID());
 			zdo.Set(HubMarker, 1L);
+			zdo.Persistent = true;
+			zdo.Distant = true;
 			ZNetScene.instance.CreateObject(zdo);
+			zdo.Persistent = true;
+			zdo.Distant = true;
+			ZDOMan.instance.SetDirtySector(zdo);
 			hubObjects.Add(zdo.m_uid);
 			return zdo;
 		}

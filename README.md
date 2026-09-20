@@ -6,9 +6,14 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.6**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.7**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.7 — Persistent planted flora and a reachable portal hall
+
+- Drop-planted bushes now save with the world. They were disappearing after sleep or a restart because Valheim 1.0 creates those objects as non-persistent.
+- The untagged home portal uses vanilla `Chat.TeleportPlayer` into a hall that is inside the map (not on the world-edge kill ring). Tagged outposts are read from the server's portal index even when their zone is unloaded.
 
 ### 1.10.6 — Find every world portal for the destination hall
 

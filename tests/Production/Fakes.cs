@@ -50,7 +50,7 @@ public struct ZDOID : IEquatable<ZDOID>
 public static class Hashes { public static int GetStableHashCode(this string s) { unchecked {int n=17;foreach(char c in s)n=n*31+c;return n;} } }
 public class ZDO
 {
-    public ZDOID m_uid; public bool Persistent=true, valid=true; public int prefab; public long owner, creator, playerId; public bool tamed; public int stack=1;
+    public ZDOID m_uid; public bool Persistent=true, Distant, valid=true; public int prefab; public long owner, creator, playerId; public bool tamed; public int stack=1;
     public readonly Dictionary<int,long> extraLong=new();
     public readonly Dictionary<int,string> extraString=new();
     public ZDOID connection;
@@ -68,6 +68,7 @@ public class ZDO
         else if (key == ZDOVars.s_playerID) playerId = value;
         else extraLong[key] = value;
     }
+    public void Set(int key, bool value) => extraLong[key] = value ? 1 : 0;
     public void Set(int key, int value) { stack = value; extraLong[key] = value; }
     public int GetInt(int key, int def=0) => extraLong.TryGetValue(key, out var v) ? (int)v : def;
     public string GetString(int key, string def="") => extraString.TryGetValue(key, out var v) ? v : def;
@@ -90,7 +91,28 @@ public class ZDO
 }
 public static class ZDOExtraData { public enum ConnectionType { Portal } }
 public class TeleportWorld : UnityEngine.Object { public ZNetView m_nview; }
-public class Game : UnityEngine.Object { public static Game instance=new(); public void ConnectPortals() {} }
+public class Game : UnityEngine.Object
+{
+    public static Game instance=new();
+    public void ConnectPortals() {}
+    public void ForceSetConnection(ZDO portal, ZDOID connection)
+    {
+        if (portal == null) return;
+        portal.SetOwner(ZDOMan.GetSessionID());
+        portal.SetConnection(ZDOExtraData.ConnectionType.Portal, connection);
+        if (ZDOMan.instance != null) ZDOMan.instance.ForceSendZDO(portal.m_uid);
+    }
+}
+public class Chat : UnityEngine.Object
+{
+    public static Chat instance=new();
+    public void TeleportPlayer(long peerId, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot, bool distant)
+    {
+        ZRoutedRpc.instance?.InvokeRoutedRPC(peerId, "RPC_TeleportPlayer", pos, rot, distant);
+        var peer = ZNet.instance?.GetPeer(peerId);
+        if (peer != null) peer.pos = pos;
+    }
+}
 public class WorldGenerator { public static WorldGenerator instance; public static float waterEdge=10500; public Heightmap.Biome GetBiome(UnityEngine.Vector3 p)=>Heightmap.Biome.None; }
 public class Player : UnityEngine.Object
 {
@@ -104,17 +126,19 @@ public class ZDOMan
     public static ZDOMan instance;
     public int nextId=10000;
     public List<ZDO>[] m_objectsBySector = new List<ZDO>[4];
+    public Dictionary<int, List<ZDO>> m_portalObjects = new();
     public Dictionary<ZDOID,ZDO> all=new();
     public List<(long,ZDOID)> forced = new();
     public static long GetSessionID()=>99;
     public ZDO GetZDO(ZDOID id)=>all.TryGetValue(id,out var z)?z:null;
     public ZDO CreateNewZDO(UnityEngine.Vector3 pos, int prefab)
     {
-        var z=new ZDO{m_uid=nextId++,prefab=prefab,pos=pos};
+        var z=new ZDO{m_uid=nextId++,prefab=prefab,pos=pos,Persistent=false};
         all[z.m_uid]=z;
         (m_objectsBySector[0]??=new()).Add(z);
         return z;
     }
+    public void SetDirtySector(ZDO z) {}
     public void DestroyZDO(ZDO z)
     {
         if (z==null) return;
@@ -126,24 +150,29 @@ public class ZDOMan
     public void FindSectorObjects(Vector2s zone,SimulationDistance d,List<ZDO> target)
     { foreach(var z in all.Values) if(z.GetSector().Equals(zone)) target.Add(z); }
     public bool IsInPeerActiveArea(UnityEngine.Vector3 p,long id)=>ZNet.instance.GetPeer(id)?.near ?? false;
+    public void ForceSendZDO(ZDOID id)
+    {
+        if (ZNet.instance == null) { forced.Add((0,id)); return; }
+        foreach (var peer in ZNet.instance.GetPeers()) forced.Add((peer.m_uid,id));
+        if (ZNet.instance.GetPeers().Count==0) forced.Add((0,id));
+    }
     public void ForceSendZDO(long p,ZDOID id)=>forced.Add((p,id));
-    public List<ZDO> GetPortals()
+    public Dictionary<int, List<ZDO>> GetPortals() => m_portalObjects;
+    public List<ZDO> GetPortalList()
     {
         var list=new List<ZDO>();
-        if (ZNetScene.instance==null) return list;
-        foreach (var z in all.Values)
-        {
-            if (z==null || !z.valid) continue;
-            if (ZNetScene.instance.m_namedPrefabs.TryGetValue(z.GetPrefab(), out var go) && go!=null && go.GetComponent<TeleportWorld>()!=null)
-                list.Add(z);
-        }
+        foreach (var bucket in m_portalObjects.Values) list.AddRange(bucket);
         return list;
     }
     public void GetAllZDOsWithPrefab(string prefab, List<ZDO> zdos)
     {
         int hash=prefab.GetStableHashCode();
-        foreach (var z in all.Values)
-            if (z!=null && z.valid && z.GetPrefab()==hash) zdos.Add(z);
+        foreach (var bucket in m_objectsBySector)
+        {
+            if (bucket == null) continue;
+            foreach (var z in bucket)
+                if (z!=null && z.valid && z.GetPrefab()==hash) zdos.Add(z);
+        }
     }
 }
 public class SimulationDistance { public SimulationDistance(int a,int b,bool c) {} }
@@ -188,7 +217,7 @@ public class ZoneSystem : UnityEngine.Object
     public bool IsZoneLoaded(UnityEngine.Vector3 p)=>IsZoneLoaded(GetZone(p));
     public bool PokeLocalZone(Vector2s z) {if(m_zones.ContainsKey(z))return false;m_zones[z]=new();return true;}
 }
-public static class ZDOVars { public static int s_tamed=1; public static int s_creator=2; public static int s_playerID=3; public static int s_tag=4; public static int s_text=5; public static int s_tagHash=6; }
+public static class ZDOVars { public static int s_tamed=1; public static int s_creator=2; public static int s_playerID=3; public static int s_tag=4; public static int s_text=5; public static int s_tagHash=6; public static int s_picked=7; }
 public class Tameable : UnityEngine.Object { public bool m_startsTamed; }
 public class EggGrow : UnityEngine.Object { public bool m_tamed; }
 public class Growup : UnityEngine.Object {}
