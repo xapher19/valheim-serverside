@@ -6,9 +6,14 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.5**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.6**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.6 — Find every world portal for the destination hall
+
+- Tagged outposts are included even when their zones are not loaded. The untagged home portal links to a hall that vanilla clients can receive.
+- Leave the home portal untagged, name the outposts, then walk into the home portal.
 
 ### 1.10.5 — Walk through an untagged home portal
 

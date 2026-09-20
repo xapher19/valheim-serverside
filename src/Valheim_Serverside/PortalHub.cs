@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using PluginConfiguration;
 using UnityEngine;
@@ -26,6 +28,12 @@ namespace Valheim_Serverside
 		private static readonly List<ZDOID> gatewayIds = new List<ZDOID>();
 		private static readonly Dictionary<long, double> lastEnter = new Dictionary<long, double>();
 		private static readonly HashSet<int> portalPrefabs = new HashSet<int>();
+		private static readonly List<string> portalPrefabNames = new List<string>();
+		private static MethodInfo getPortalsMethod;
+		private static MethodInfo getAllPrefabsMethod;
+		private static FieldInfo outsideSectorField;
+		private static FieldInfo tagHashField;
+		private static bool portalApisResolved;
 		private static string lastSignature = "";
 		private static double nextScan;
 		private static Regex includeRegex, excludeRegex;
@@ -50,6 +58,7 @@ namespace Valheim_Serverside
 			EnsureOrigin();
 			RebuildFilters();
 			RefreshPortalPrefabIndex();
+			ResolvePortalApis();
 			Reconcile();
 		}
 
@@ -57,9 +66,16 @@ namespace Valheim_Serverside
 		{
 			if (originReady) return;
 			float edge = 10500f;
-			if (WorldGenerator.instance != null) edge = WorldGenerator.waterEdge;
-			hubOrigin = new Vector3(edge + 5f * 64f, 2000f, 0f);
+			if (WorldGenerator.instance != null && WorldGenerator.waterEdge > 512f)
+				edge = WorldGenerator.waterEdge;
+			hubOrigin = new Vector3(edge - 6f * 64f, 2500f, 0f);
 			originReady = true;
+		}
+
+		private static void EnsureHubZone()
+		{
+			if (!ZoneSystem.instance) return;
+			ZoneSystem.instance.PokeLocalZone(ZoneSystem.GetZone(hubOrigin));
 		}
 
 		private static void RebuildFilters()
@@ -94,50 +110,113 @@ namespace Valheim_Serverside
 		private static void RefreshPortalPrefabIndex()
 		{
 			portalPrefabs.Clear();
+			portalPrefabNames.Clear();
+			if (ZNetScene.instance == null || ZNetScene.instance.m_namedPrefabs == null) return;
 			foreach (var pair in ZNetScene.instance.m_namedPrefabs)
-				if (pair.Value && pair.Value.GetComponent<TeleportWorld>())
-					portalPrefabs.Add(pair.Key);
+			{
+				if (!pair.Value || pair.Value.GetComponent<TeleportWorld>() == null) continue;
+				portalPrefabs.Add(pair.Key);
+				if (!string.IsNullOrEmpty(pair.Value.name) && !portalPrefabNames.Contains(pair.Value.name))
+					portalPrefabNames.Add(pair.Value.name);
+			}
+		}
+
+		private static void ResolvePortalApis()
+		{
+			if (portalApisResolved) return;
+			portalApisResolved = true;
+			const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+			getPortalsMethod = typeof(ZDOMan).GetMethod("GetPortals", flags, null, Type.EmptyTypes, null)
+				?? typeof(ZDOMan).GetMethod("GetPortalList", flags, null, Type.EmptyTypes, null);
+			getAllPrefabsMethod = typeof(ZDOMan).GetMethod("GetAllZDOsWithPrefab", flags, null, new[] { typeof(string), typeof(List<ZDO>) }, null);
+			outsideSectorField = typeof(ZDOMan).GetField("m_objectsByOutsideSector", flags);
+			tagHashField = typeof(ZDOVars).GetField("s_tagHash", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 		}
 
 		private static List<ZDO> WorldPortals()
 		{
 			var list = new List<ZDO>();
-			List<ZDO>[] sectors = ZDOMan.instance.m_objectsBySector;
-			if (sectors == null) return list;
+			var seen = new HashSet<ZDOID>();
+			CollectPortals(zdo =>
+			{
+				if (zdo == null || !zdo.IsValid() || IsHubObject(zdo)) return;
+				if (portalPrefabs.Count > 0 && !portalPrefabs.Contains(zdo.GetPrefab())) return;
+				if (!seen.Add(zdo.m_uid)) return;
+				list.Add(zdo);
+			});
+			return list;
+		}
+
+		private static void CollectPortals(Action<ZDO> take)
+		{
+			if (ZDOMan.instance == null || take == null) return;
+			if (getPortalsMethod != null)
+			{
+				object result = getPortalsMethod.Invoke(ZDOMan.instance, null);
+				if (result is IEnumerable<ZDO> found)
+					foreach (ZDO zdo in found) take(zdo);
+			}
+			if (getAllPrefabsMethod != null)
+			{
+				foreach (string name in portalPrefabNames)
+				{
+					var batch = new List<ZDO>();
+					getAllPrefabsMethod.Invoke(ZDOMan.instance, new object[] { name, batch });
+					foreach (ZDO zdo in batch) take(zdo);
+				}
+			}
+			CollectSectorBuckets(ZDOMan.instance.m_objectsBySector, take);
+			if (outsideSectorField != null)
+			{
+				object outside = outsideSectorField.GetValue(ZDOMan.instance);
+				if (outside is IDictionary map)
+				{
+					foreach (object value in map.Values)
+						if (value is List<ZDO> bucket)
+							for (int i = 0; i < bucket.Count; i++) take(bucket[i]);
+				}
+			}
+		}
+
+		private static void CollectSectorBuckets(List<ZDO>[] sectors, Action<ZDO> take)
+		{
+			if (sectors == null) return;
 			for (int s = 0; s < sectors.Length; s++)
 			{
 				List<ZDO> bucket = sectors[s];
 				if (bucket == null) continue;
-				for (int i = 0; i < bucket.Count; i++)
-				{
-					ZDO zdo = bucket[i];
-					if (zdo == null || !zdo.IsValid() || IsHubObject(zdo)) continue;
-					if (portalPrefabs.Contains(zdo.GetPrefab())) list.Add(zdo);
-				}
+				for (int i = 0; i < bucket.Count; i++) take(bucket[i]);
 			}
-			return list;
 		}
 
 		private static void MaybeAutoName(ZDO zdo)
 		{
 			if (!Configuration.portalHubAutoName.Value) return;
-			string tag = zdo.GetString(ZDOVars.s_tag, "");
-			if (!string.IsNullOrEmpty(tag)) return;
+			if (!string.IsNullOrEmpty(TagOf(zdo))) return;
 			Heightmap.Biome biome = WorldGenerator.instance != null
 				? WorldGenerator.instance.GetBiome(zdo.GetPosition())
 				: Heightmap.Biome.None;
 			string biomeName = biome == Heightmap.Biome.None ? "Portal" : biome.ToString();
-			var used = new HashSet<string>(WorldPortals().Select(p => p.GetString(ZDOVars.s_tag, "")));
+			var used = new HashSet<string>(WorldPortals().Select(TagOf));
 			for (int i = 1; i <= 1000; i++)
 			{
 				string candidate = string.Format(Configuration.portalHubAutoNameFormat.Value, biomeName, i);
 				if (used.Contains(candidate)) continue;
-				zdo.Set(ZDOVars.s_tag, candidate);
+				SetTag(zdo, candidate);
 				return;
 			}
 		}
 
-		private static string TagOf(ZDO zdo) => zdo == null ? "" : (zdo.GetString(ZDOVars.s_tag, "") ?? "");
+		private static string TagOf(ZDO zdo) => zdo == null ? "" : (zdo.GetString(ZDOVars.s_tag, "") ?? "").Trim();
+
+		private static void SetTag(ZDO zdo, string tag)
+		{
+			if (zdo == null) return;
+			string text = tag ?? "";
+			zdo.Set(ZDOVars.s_tag, text);
+			if (tagHashField != null)
+				zdo.Set((int)tagHashField.GetValue(null), text.Length == 0 ? 0 : text.GetStableHashCode());
+		}
 
 		private static bool IsGateway(ZDO zdo) => zdo != null && zdo.IsValid() && string.IsNullOrEmpty(TagOf(zdo));
 
@@ -164,6 +243,7 @@ namespace Valheim_Serverside
 			var unpaired = UnpairedTags(portals.Select(TagOf));
 			if (gateways > 0)
 			{
+				if (FindHubLobby() == null) lastSignature = "";
 				string signature = "hall|" + gateways + "|" + string.Join("|", unpaired);
 				if (signature != lastSignature)
 				{
@@ -171,7 +251,7 @@ namespace Valheim_Serverside
 					BuildHall(unpaired);
 					lastSignature = signature;
 					ServersidePlugin.logger.LogInfo(
-						$"Portal hall: {gateways} untagged home portal(s), {unpaired.Count} destination(s). "
+						$"Portal hall: {gateways} untagged home portal(s), destinations [{string.Join(", ", unpaired)}]. "
 						+ "Walk through an untagged home portal to pick a labeled destination. Tagged world portals return home.");
 					NotifyAll(unpaired.Count == 0
 						? "Home portal is ready. Name an outpost portal to add a destination, then walk through the untagged home portal."
@@ -221,11 +301,7 @@ namespace Valheim_Serverside
 			ZDO home = gateways[0];
 			ZDO lobby = FindHubLobby();
 			if (lobby == null || !lobby.IsValid())
-			{
-				foreach (ZDO gateway in gateways)
-					SetPortalConnection(gateway, ZDOID.None);
 				return;
-			}
 
 			foreach (ZDO gateway in gateways)
 				SetPortalConnection(gateway, lobby.m_uid);
@@ -299,27 +375,32 @@ namespace Valheim_Serverside
 				ZDOMan.instance.ForceSendZDO(peer.m_uid, gatewayIds[i]);
 		}
 
+		private static bool NearPortal(Vector3 pos, Vector3 portal, float radiusSq)
+		{
+			float dx = portal.x - pos.x, dz = portal.z - pos.z;
+			return dx * dx + dz * dz <= radiusSq && Math.Abs(portal.y - pos.y) <= 4f;
+		}
+
 		private static void TryEnterGateways()
 		{
 			if (ZNet.instance == null || gatewayIds.Count == 0) return;
 			ZDO lobby = FindHubLobby();
 			if (lobby == null || !lobby.IsValid()) return;
 			double now = Time.realtimeSinceStartupAsDouble;
-			const float radiusSq = 2.25f * 2.25f;
+			const float radiusSq = 4f * 4f;
 			foreach (ZNetPeer peer in ZNet.instance.GetPeers())
 			{
 				if (peer == null || !peer.IsReady()) continue;
 				if (lastEnter.TryGetValue(peer.m_uid, out double at) && now - at < 2.5) continue;
+				Vector3 refPos = peer.GetRefPos();
 				ZDO character = ZDOMan.instance.GetZDO(peer.m_characterID);
-				if (character == null || !character.IsValid()) continue;
-				Vector3 pos = character.GetPosition();
+				Vector3 body = character != null && character.IsValid() ? character.GetPosition() : refPos;
 				for (int i = 0; i < gatewayIds.Count; i++)
 				{
 					ZDO gateway = ZDOMan.instance.GetZDO(gatewayIds[i]);
 					if (!IsGateway(gateway)) continue;
 					Vector3 portal = gateway.GetPosition();
-					float dx = portal.x - pos.x, dz = portal.z - pos.z;
-					if (dx * dx + dz * dz > radiusSq || Math.Abs(portal.y - pos.y) > 3f) continue;
+					if (!NearPortal(refPos, portal, radiusSq) && !NearPortal(body, portal, radiusSq)) continue;
 					lastEnter[peer.m_uid] = now;
 					PublishToPeer(peer, lobby);
 					TeleportPeer(peer, lobby);
@@ -346,7 +427,7 @@ namespace Valheim_Serverside
 				Notify(peer, "No destination '" + requested.Trim() + "'. This portal is now tagged " + requested.Trim() + ".");
 				return;
 			}
-			zdo.Set(ZDOVars.s_tag, "");
+			SetTag(zdo, "");
 			TeleportPeer(peer, dest);
 			Notify(peer, "Traveling to " + TagOf(dest) + ".");
 		}
@@ -429,16 +510,20 @@ namespace Valheim_Serverside
 				if (zdo != null && zdo.IsValid()) ZDOMan.instance.DestroyZDO(zdo);
 			}
 			hubObjects.Clear();
-			List<ZDO>[] sectors = ZDOMan.instance.m_objectsBySector;
-			if (sectors == null) return;
 			var orphans = new List<ZDO>();
-			for (int s = 0; s < sectors.Length; s++)
+			var seen = new HashSet<ZDOID>();
+			CollectPortals(zdo =>
 			{
-				List<ZDO> bucket = sectors[s];
-				if (bucket == null) continue;
-				foreach (ZDO zdo in bucket)
-					if (zdo != null && zdo.IsValid() && IsHubObject(zdo)) orphans.Add(zdo);
-			}
+				if (zdo == null || !zdo.IsValid() || !IsHubObject(zdo)) return;
+				if (!seen.Add(zdo.m_uid)) return;
+				orphans.Add(zdo);
+			});
+			CollectSectorBuckets(ZDOMan.instance.m_objectsBySector, zdo =>
+			{
+				if (zdo == null || !zdo.IsValid() || !IsHubObject(zdo)) return;
+				if (!seen.Add(zdo.m_uid)) return;
+				orphans.Add(zdo);
+			});
 			foreach (ZDO zdo in orphans) ZDOMan.instance.DestroyZDO(zdo);
 		}
 
@@ -468,6 +553,7 @@ namespace Valheim_Serverside
 
 		private static void BuildHall(List<string> tags)
 		{
+			EnsureHubZone();
 			Quaternion faceDestinations = Quaternion.LookRotation(Vector3.forward);
 			Quaternion faceHome = Quaternion.LookRotation(Vector3.back);
 			const float spacing = 6f;
@@ -480,7 +566,7 @@ namespace Valheim_Serverside
 			ZDO lobby = PlacePrefab(ResolvePortalPrefab(), hubOrigin, faceDestinations);
 			if (lobby != null)
 			{
-				lobby.Set(ZDOVars.s_tag, LobbyTag);
+				SetTag(lobby, LobbyTag);
 				lobby.Set(LobbyMarker, 1L);
 				hubLobbyId = lobby.m_uid;
 			}
@@ -496,7 +582,7 @@ namespace Valheim_Serverside
 				Vector3 pos = hubOrigin + new Vector3((col - (cols - 1) / 2f) * spacing, 0f, destZ + row * spacing);
 				ZDO portal = PlacePrefab(ResolvePortalPrefab(), pos, faceHome);
 				if (portal == null) continue;
-				portal.Set(ZDOVars.s_tag, tags[i]);
+				SetTag(portal, tags[i]);
 				PlaceSign(pos + new Vector3(0f, 2.2f, -1.2f), faceHome, "<color=white>" + tags[i]);
 			}
 		}
@@ -524,7 +610,7 @@ namespace Valheim_Serverside
 				PlaceFloor(pos + new Vector3(0f, -0.1f, 0f));
 				ZDO portal = PlacePrefab(ResolvePortalPrefab(), pos, Quaternion.identity);
 				if (portal == null) continue;
-				portal.Set(ZDOVars.s_tag, tags[i]);
+				SetTag(portal, tags[i]);
 				PlaceSign(pos + new Vector3(0f, 2f, -0.6f), Quaternion.identity, "<color=white>" + tags[i]);
 			}
 		}

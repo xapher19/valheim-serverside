@@ -1,3 +1,9 @@
+## 1.10.6 — Find every world portal for the destination hall
+
+- Scan all saved portals, not only those in loaded zones, so tagged outposts still appear when nobody is standing next to them.
+- Place the destination hall inside the world (high over the outer ocean) so vanilla clients can actually receive the linked hall portal. The previous sky hub sat outside the map and the home portal stayed unconnected.
+- Rebuild the hall if its lobby is missing, and treat walking within 4 m of an untagged home portal as entering it.
+
 ## 1.10.5 — Walk through an untagged home portal
 
 - Walking into an untagged home portal now teleports vanilla clients into the destination hall. The hall sits outside normal world sync, so 1.10.4 could wire the portal without the client ever arriving.

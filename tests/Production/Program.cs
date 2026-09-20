@@ -137,15 +137,23 @@ class Program
         planterChar.pos=new Vector3(5000,0,0);
         var homePortal=Add(200,"portal_wood");
         var swamp=Add(201,"portal_wood",80); swamp.Set(ZDOVars.s_tag,"Swamp");
+        var mountains=new ZDO{m_uid=202,prefab="portal_wood".GetStableHashCode(),pos=new Vector3(9000,0,0)};
+        mountains.Set(ZDOVars.s_tag,"Mountains");
+        ZDOMan.instance.all[mountains.m_uid]=mountains;
         PortalHub.Installed=true;
         Time.realtimeSinceStartupAsDouble=200;
         PortalHub.Tick();
         Check(PortalHub.Status.Contains("destination hall"),"Untagged home did not build a destination hall");
         ZDO lobby=null;
+        bool hallHasMountains=false;
         foreach (var z in ZDOMan.instance.all.Values)
+        {
             if (z.GetLong("nw_portal_lobby".GetStableHashCode(),0)!=0) lobby=z;
+            if (z.GetLong("nw_portal_hub".GetStableHashCode(),0)!=0 && z.GetString(ZDOVars.s_tag,"")=="Mountains") hallHasMountains=true;
+        }
         Check(lobby!=null && homePortal.connection.Equals(lobby.m_uid),"Home portal does not walk into the hall");
         Check(lobby.connection.Equals(homePortal.m_uid),"Hall Home portal does not return to the untagged portal");
+        Check(hallHasMountains,"Tagged portal outside loaded sectors was omitted from the hall");
         Check(ZDOMan.instance.forced.Exists(f=>f.Item2.Equals(lobby.m_uid)),"Hall lobby was not sent to vanilla clients");
         player.pos=homePortal.GetPosition();
         ZDOMan.instance.forced.Clear();

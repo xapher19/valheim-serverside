@@ -127,6 +127,24 @@ public class ZDOMan
     { foreach(var z in all.Values) if(z.GetSector().Equals(zone)) target.Add(z); }
     public bool IsInPeerActiveArea(UnityEngine.Vector3 p,long id)=>ZNet.instance.GetPeer(id)?.near ?? false;
     public void ForceSendZDO(long p,ZDOID id)=>forced.Add((p,id));
+    public List<ZDO> GetPortals()
+    {
+        var list=new List<ZDO>();
+        if (ZNetScene.instance==null) return list;
+        foreach (var z in all.Values)
+        {
+            if (z==null || !z.valid) continue;
+            if (ZNetScene.instance.m_namedPrefabs.TryGetValue(z.GetPrefab(), out var go) && go!=null && go.GetComponent<TeleportWorld>()!=null)
+                list.Add(z);
+        }
+        return list;
+    }
+    public void GetAllZDOsWithPrefab(string prefab, List<ZDO> zdos)
+    {
+        int hash=prefab.GetStableHashCode();
+        foreach (var z in all.Values)
+            if (z!=null && z.valid && z.GetPrefab()==hash) zdos.Add(z);
+    }
 }
 public class SimulationDistance { public SimulationDistance(int a,int b,bool c) {} }
 public class ZRpc { public void Invoke(string n, params object[] a) {} }
@@ -170,7 +188,7 @@ public class ZoneSystem : UnityEngine.Object
     public bool IsZoneLoaded(UnityEngine.Vector3 p)=>IsZoneLoaded(GetZone(p));
     public bool PokeLocalZone(Vector2s z) {if(m_zones.ContainsKey(z))return false;m_zones[z]=new();return true;}
 }
-public static class ZDOVars { public static int s_tamed=1; public static int s_creator=2; public static int s_playerID=3; public static int s_tag=4; public static int s_text=5; }
+public static class ZDOVars { public static int s_tamed=1; public static int s_creator=2; public static int s_playerID=3; public static int s_tag=4; public static int s_text=5; public static int s_tagHash=6; }
 public class Tameable : UnityEngine.Object { public bool m_startsTamed; }
 public class EggGrow : UnityEngine.Object { public bool m_tamed; }
 public class Growup : UnityEngine.Object {}
