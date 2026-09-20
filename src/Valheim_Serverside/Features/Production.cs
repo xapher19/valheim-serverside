@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Valheim_Serverside.Features
 {
-    // Installed as one verified, atomic feature: no production without the raid/clock guards.
+    // Installed as one verified, atomic feature: raid/clock guards without loading bases.
     public class Production : IFeature
     {
         public bool FeatureEnabled() => Configuration.productionEnabled.Value;

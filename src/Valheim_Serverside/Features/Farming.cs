@@ -5,10 +5,12 @@ using UnityEngine;
 
 namespace Valheim_Serverside.Features
 {
-	// Optional dedicated-server farming retunes. Does not add cultivator recipes or client UI.
+	// Optional grow/respawn retunes, plus Harmony install when item planting is on.
+	// Vanilla clients plant flora by dropping harvest items; no cultivator recipes.
 	public class Farming : IFeature
 	{
-		public bool FeatureEnabled() => Configuration.farmingEnabled.Value;
+		public bool FeatureEnabled() => Configuration.farmingEnabled.Value || Configuration.farmingItemPlanting.Value
+			|| Configuration.farmingGrowSpaceScale.Value < 0.999f;
 
 		[HarmonyPatch(typeof(ZNetScene), "Awake")]
 		public static class PrefabOverrides
@@ -34,15 +36,22 @@ namespace Valheim_Serverside.Features
 		[HarmonyPatch(typeof(Plant), "HaveGrowSpace")]
 		public static class PlantHaveGrowSpace
 		{
-			static bool Prefix(ref bool __result)
+			static bool Prefix(Plant __instance, ref bool __result, out float __state)
 			{
-				if (!FarmingSupport.RelaxPlantRestrictions) return true;
-				if (Configuration.farmingPlaceAnywhere.Value || !Configuration.farmingRequireGrowthSpace.Value)
+				__state = __instance ? __instance.m_growRadius : 0f;
+				if (Configuration.farmingPlaceAnywhere.Value
+					|| (Configuration.farmingEnabled.Value && !Configuration.farmingRequireGrowthSpace.Value))
 				{
 					__result = true;
 					return false;
 				}
+				if (__instance) __instance.m_growRadius = FarmingSupport.ScaledGrowRadius(__state);
 				return true;
+			}
+
+			static void Postfix(Plant __instance, float __state)
+			{
+				if (__instance) __instance.m_growRadius = __state;
 			}
 		}
 	}

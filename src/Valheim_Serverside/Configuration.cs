@@ -6,10 +6,10 @@ namespace PluginConfiguration
 	{
 		public static ConfigEntry<bool> modEnabled;
 		public static ConfigEntry<bool> productionEnabled, productionLivestock, productionFlora, advanceEmptyTime, adaptiveLoading, saveAnnouncements;
-        public static ConfigEntry<bool> farmingEnabled, farmingPlaceAnywhere, farmingRequireSunlight, farmingRequireGrowthSpace;
+        public static ConfigEntry<bool> farmingEnabled, farmingPlaceAnywhere, farmingRequireSunlight, farmingRequireGrowthSpace, farmingItemPlanting;
         public static ConfigEntry<bool> portalHubEnabled, portalHubAutoName;
-        public static ConfigEntry<int> productionScanBudget, idleFps, farmingFloraRespawnMinutes;
-        public static ConfigEntry<float> loadingBudgetMs, sendBudgetMs, farmingCropGrowTimeMin, farmingCropGrowTimeMax;
+        public static ConfigEntry<int> productionScanBudget, idleFps, farmingFloraRespawnMinutes, farmingItemPlantCost;
+        public static ConfigEntry<float> loadingBudgetMs, sendBudgetMs, farmingCropGrowTimeMin, farmingCropGrowTimeMax, farmingItemPlantSpacing, farmingItemPlantSettleSeconds, farmingGrowSpaceScale;
         public static ConfigEntry<string> productionExclude, farmingExtraFlora, portalHubInclude, portalHubExclude, portalHubAutoNameFormat;
         public static ConfigEntry<bool> diagnosticsEnabled, diagnosticAlerts, interactionDiagnostics;
         public static ConfigEntry<int> diagnosticReportMinutes, alertDurationSeconds, alertCooldownSeconds, lowFpsThreshold;
@@ -40,21 +40,26 @@ namespace PluginConfiguration
 
 		public static void Load(ConfigFile config)
 		{
-			productionEnabled = config.Bind("Production", "Enabled", true, "Keep generated zones around player-built processing stations, planted crops and beehives active (requires a piece creator). More CPU/RAM; requires restart. Raid starts and raid spawns require a real nearby player.");
-            productionLivestock = config.Bind("Production", "Livestock", false, "Keep already-tamed animals, their young and hatchable tame-animal eggs active when they have a player creator. Off by default to avoid pinning large areas. Requires restart.");
-            productionFlora = config.Bind("Production", "Flora", true, "Keep player-planted berry bushes, mushrooms and flowers (creator set) active. Wild flora is ignored. Works with PlantEverything-planted objects without installing PlantEverything on the server. Requires restart.");
+			productionEnabled = config.Bind("Production", "Enabled", true, "Raid starts/spawns require a real nearby player, and optionally advance world time while empty. Does not keep bases loaded (that pulled in nearby dungeons). Requires restart.");
+            productionLivestock = config.Bind("Production", "Livestock", false, "Unused. Production no longer keeps areas loaded around tamed animals.");
+            productionFlora = config.Bind("Production", "Flora", true, "Unused. Production no longer keeps areas loaded around planted flora.");
             advanceEmptyTime = config.Bind("Production", "AdvanceTimeWhenEmpty", true, "Continue the world clock while empty when production is active. Days/weather also advance. No catch-up while the server is stopped.");
             productionScanBudget = config.Bind("Production", "ScanEntriesPerFrame", 2048, new ConfigDescription("Maximum sector/object scan steps per frame when finding existing production after restart.", new AcceptableValueRange<int>(64, 16384)));
             productionExclude = config.Bind("Production", "ExcludedPrefabs", "", "Comma-separated exact prefab names excluded from automatic production anchors. Requires restart.");
-            farmingEnabled = config.Bind("Farming", "Enabled", false, "Optional dedicated-server farming retunes (grow/respawn/restriction). Does not add cultivator recipes; clients still need PlantEverything or similar to plant flora. Requires restart.");
-            farmingPlaceAnywhere = config.Bind("Farming", "PlaceAnywhere", false, "Relax plant roof, growth-space and ground checks while Farming is enabled. Server simulation only.");
+            farmingEnabled = config.Bind("Farming", "Enabled", false, "Optional dedicated-server farming retunes (grow/respawn/restriction). Does not add cultivator recipes. Requires restart.");
+            farmingItemPlanting = config.Bind("Farming", "ItemPlanting", true, "Vanilla clients plant bushes and other pickable flora by dropping the matching harvest item on cultivated ground. No client mod.");
+            farmingItemPlantCost = config.Bind("Farming", "ItemPlantCost", 5, new ConfigDescription("Harvest items consumed per planted flora object.", new AcceptableValueRange<int>(1, 100)));
+            farmingItemPlantSpacing = config.Bind("Farming", "ItemPlantSpacing", 2f, new ConfigDescription("Minimum metres between same-type planted flora.", new AcceptableValueRange<float>(0.5f, 20f)));
+            farmingItemPlantSettleSeconds = config.Bind("Farming", "ItemPlantSettleSeconds", 2f, new ConfigDescription("Seconds a drop must sit before it is planted, so it can still be picked up.", new AcceptableValueRange<float>(0f, 30f)));
+            farmingPlaceAnywhere = config.Bind("Farming", "PlaceAnywhere", false, "Relax plant roof, growth-space and ground checks while Farming is enabled. Also allows item planting off cultivated ground.");
             farmingRequireSunlight = config.Bind("Farming", "RequireSunlight", true, "When false (and Farming enabled), plants ignore the roof/sunlight check.");
             farmingRequireGrowthSpace = config.Bind("Farming", "RequireGrowthSpace", true, "When false (and Farming enabled), plants ignore the growth-space check.");
+            farmingGrowSpaceScale = config.Bind("Farming", "GrowSpaceScale", 0.4f, new ConfigDescription("Multiply vanilla plant/tree grow radius on the server. Applies to existing saplings. 1 is vanilla; 0.4 is much tighter.", new AcceptableValueRange<float>(0.05f, 1f)));
             farmingCropGrowTimeMin = config.Bind("Farming", "CropGrowTimeMin", 0f, new ConfigDescription("Override Plant.m_growTime when Farming is enabled. 0 leaves vanilla/mod values.", new AcceptableValueRange<float>(0f, 100000f)));
             farmingCropGrowTimeMax = config.Bind("Farming", "CropGrowTimeMax", 0f, new ConfigDescription("Override Plant.m_growTimeMax when Farming is enabled. 0 leaves vanilla/mod values; below Min uses Min.", new AcceptableValueRange<float>(0f, 100000f)));
             farmingFloraRespawnMinutes = config.Bind("Farming", "FloraRespawnMinutes", 0, new ConfigDescription("Override pickable respawn minutes for configured flora prefabs when Farming is enabled. 0 leaves vanilla/mod values.", new AcceptableValueRange<int>(0, 100000)));
-            farmingExtraFlora = config.Bind("Farming", "ExtraFloraPrefabs", "", "Comma-separated exact prefab names added to the default flora list for production anchors and respawn overrides. Requires restart.");
-            portalHubEnabled = config.Bind("PortalHub", "Enabled", true, "Generate a sky portal hub and pair unconnected world portals (odd count per tag) to matching hub portals. Server-side only; remove ServersideQoL AutoPortalHub if present.");
+            farmingExtraFlora = config.Bind("Farming", "ExtraFloraPrefabs", "", "Comma-separated exact prefab names added to the default flora list for item-planting recipes' flora side and respawn overrides. Requires restart.");
+            portalHubEnabled = config.Bind("PortalHub", "Enabled", true, "Untagged home portal walks into a labeled destination hall of vanilla portals and signs. Tagged world portals return home. Empty portals are not paired with each other. Remove ServersideQoL AutoPortalHub if present.");
             portalHubInclude = config.Bind("PortalHub", "Include", "*", "Only portals whose tag matches this wildcard filter are hub-paired (* = all).");
             portalHubExclude = config.Bind("PortalHub", "Exclude", "", "Portals whose tag matches this wildcard filter are never hub-paired.");
             portalHubAutoName = config.Bind("PortalHub", "AutoNameNewPortals", false, "Name empty-tagged new portals using AutoNameFormat before hub pairing.");

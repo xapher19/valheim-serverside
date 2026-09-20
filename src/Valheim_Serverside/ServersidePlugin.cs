@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.10.1";
+		public const string PluginVersion = "1.10.3";
 
 		private static ServersidePlugin context;
 
@@ -69,6 +69,7 @@ namespace Valheim_Serverside
 			availableFeatures.AddFeature(new Features.Core());
             availableFeatures.AddFeature(new Features.Production());
             availableFeatures.AddFeature(new Features.Farming());
+            availableFeatures.AddFeature(new Features.PortalHubHooks());
             availableFeatures.AddFeature(new Features.SaveFeedback());
             availableFeatures.AddFeature(new Features.InteractionReliability());
 			availableFeatures.AddFeature(new Features.MaxObjectsPerFrame());
@@ -93,10 +94,11 @@ namespace Valheim_Serverside
             DiagnosticRuntime.Installed = true;
             DiagnosticRuntime.Initialize();
             PortalHub.Installed = true;
+			FloraItemPlanting.Installed = true;
 			Features.TargetFpsVerifier.Start(Time.realtimeSinceStartupAsDouble);
 			Logger.LogInfo($"{PluginName} installed");
 			if (Configuration.portalHubEnabled.Value)
-				Logger.LogInfo("Portal hub enabled. Remove ServersideQoL AutoPortalHub (and related portal packages) to avoid duplicate hubs.");
+				Logger.LogInfo("Portal hall enabled: leave one home portal untagged and walk through it to pick a labeled destination. Tagged world portals return home. Remove ServersideQoL AutoPortalHub if present.");
 		}
 
 		private static bool consoleStarted;
@@ -112,6 +114,7 @@ namespace Valheim_Serverside
 			{
 				ProductionAreas.Tick();
                 PortalHub.Tick();
+				FloraItemPlanting.Tick();
                 ServerFeedback.Tick();
                 Features.TargetFpsVerifier.Tick(Time.realtimeSinceStartupAsDouble);
 				Features.PerformanceStats.Frame();
@@ -211,7 +214,7 @@ namespace Valheim_Serverside
 				Harmony featureHarmony = new Harmony($"{PluginGUID}.{featureName}");
 				try
 				{
-					patcher.PatchAll(feature.GetType().GetNestedTypes(), featureHarmony, verify: feature is Features.Core || feature is Features.Production || feature is Features.Farming || feature is Features.SaveFeedback || feature is Features.InteractionReliability || feature is Features.MaxObjectsPerFrame);
+					patcher.PatchAll(feature.GetType().GetNestedTypes(), featureHarmony, verify: feature is Features.Core || feature is Features.Production || feature is Features.Farming || feature is Features.PortalHubHooks || feature is Features.SaveFeedback || feature is Features.InteractionReliability || feature is Features.MaxObjectsPerFrame);
 					if (feature is Features.Core)
 					{
 						foreach (Type hook in feature.GetType().GetNestedTypes())
@@ -239,6 +242,7 @@ namespace Valheim_Serverside
                         DiagnosticRuntime.Rollback();
                         ProductionAreas.Installed = false;
                         PortalHub.Installed = false;
+						FloraItemPlanting.Installed = false;
                         ServerFeedback.Installed = false;
 						Features.Performance.ClearHookHealth();
 						Logger.LogError("Patch health: Core FAILED; all simulation patches rolled back. Performance and FPS verification will not start.");

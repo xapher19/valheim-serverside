@@ -8,5 +8,6 @@
 <Compile Include="../../src/Valheim_Serverside/Features/Farming.cs" />
 <Compile Include="../../src/Valheim_Serverside/ServerFeedback.cs" />
 <Compile Include="../../src/Valheim_Serverside/Features/InteractionReliability.cs" />
+<Compile Include="../../src/Valheim_Serverside/PortalHub.cs" />
 </ItemGroup>
 </Project>

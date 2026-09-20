@@ -11,10 +11,17 @@ namespace Valheim_Serverside
 	// ArgusMagnus ServersideQoL AutoPortalHub (pair unpaired portal tags via a generated hub)
 	// but does not include or depend on that mod's source. Remove AutoPortalHub / ServersideQoL
 	// portal packages when using this; running both will fight over hub objects.
+	//
+	// Vanilla clients have no RPC that opens a destination dropdown. Custom RPCs are ignored
+	// unless the client registered them. The selectable UI is therefore vanilla pieces the
+	// server can spawn: a hall of portals with signs. Walking into an untagged home portal
+	// arrives there. Typed tags remain an optional shortcut on that home portal.
 	internal static class PortalHub
 	{
+		internal const string LobbyTag = "Home";
 		internal static bool Installed;
 		private static readonly int HubMarker = "nw_portal_hub".GetStableHashCode();
+		private static readonly int LobbyMarker = "nw_portal_lobby".GetStableHashCode();
 		private static readonly List<ZDOID> hubObjects = new List<ZDOID>();
 		private static readonly HashSet<int> portalPrefabs = new HashSet<int>();
 		private static string lastSignature = "";
@@ -22,9 +29,12 @@ namespace Valheim_Serverside
 		private static Regex includeRegex, excludeRegex;
 		private static Vector3 hubOrigin;
 		private static bool originReady;
+		private static ZDOID hubLobbyId;
 		internal static bool Enabled => Installed && Configuration.portalHubEnabled.Value;
 		internal static string Status => !Enabled ? "portal hub inactive"
-			: $"portal hub {hubObjects.Count} pieces; last plan [{lastSignature}]";
+			: lastSignature.StartsWith("hall|", StringComparison.Ordinal)
+				? $"portal destination hall {hubObjects.Count} pieces"
+				: $"portal hub {hubObjects.Count} pieces; last plan [{lastSignature}]";
 
 		internal static void Tick()
 		{
@@ -67,12 +77,16 @@ namespace Valheim_Serverside
 
 		private static bool AllowedTag(string tag)
 		{
-			if (includeRegex != null && !includeRegex.IsMatch(tag ?? "")) return false;
-			if (excludeRegex != null && excludeRegex.IsMatch(tag ?? "")) return false;
+			if (string.IsNullOrEmpty(tag)) return false;
+			if (string.Equals(tag, LobbyTag, StringComparison.OrdinalIgnoreCase)) return false;
+			if (includeRegex != null && !includeRegex.IsMatch(tag)) return false;
+			if (excludeRegex != null && excludeRegex.IsMatch(tag)) return false;
 			return true;
 		}
 
 		private static bool IsHubObject(ZDO zdo) => zdo != null && zdo.GetLong(HubMarker, 0L) != 0L;
+
+		private static bool IsHubLobby(ZDO zdo) => IsHubObject(zdo) && zdo.GetLong(LobbyMarker, 0L) != 0L;
 
 		private static void RefreshPortalPrefabIndex()
 		{
@@ -120,27 +134,54 @@ namespace Valheim_Serverside
 			}
 		}
 
+		private static string TagOf(ZDO zdo) => zdo == null ? "" : (zdo.GetString(ZDOVars.s_tag, "") ?? "");
+
+		private static bool IsGateway(ZDO zdo) => zdo != null && zdo.IsValid() && string.IsNullOrEmpty(TagOf(zdo));
+
+		internal static List<string> UnpairedTags(IEnumerable<string> tags)
+		{
+			var byTag = new Dictionary<string, int>(StringComparer.Ordinal);
+			foreach (string tag in tags)
+			{
+				if (string.IsNullOrEmpty(tag) || !AllowedTag(tag)) continue;
+				byTag.TryGetValue(tag, out int n);
+				byTag[tag] = n + 1;
+			}
+			return byTag.Where(kv => kv.Value % 2 != 0).Select(kv => kv.Key).OrderBy(t => t, StringComparer.Ordinal).ToList();
+		}
+
 		private static void Reconcile()
 		{
 			var portals = WorldPortals();
 			foreach (ZDO zdo in portals) MaybeAutoName(zdo);
-
-			var byTag = new Dictionary<string, List<ZDO>>(StringComparer.Ordinal);
+			int gateways = 0;
 			foreach (ZDO zdo in portals)
+				if (IsGateway(zdo)) gateways++;
+
+			var unpaired = UnpairedTags(portals.Select(TagOf));
+			if (gateways > 0)
 			{
-				string tag = zdo.GetString(ZDOVars.s_tag, "") ?? "";
-				if (!AllowedTag(tag)) continue;
-				if (!byTag.TryGetValue(tag, out var group)) byTag[tag] = group = new List<ZDO>();
-				group.Add(zdo);
+				string signature = "hall|" + gateways + "|" + string.Join("|", unpaired);
+				if (signature != lastSignature)
+				{
+					ClearHub();
+					BuildHall(unpaired);
+					lastSignature = signature;
+					ServersidePlugin.logger.LogInfo(
+						$"Portal hall: {gateways} untagged home portal(s), {unpaired.Count} destination(s). "
+						+ "Walk through an untagged home portal to pick a labeled destination. Tagged world portals return home.");
+				}
+				Connect();
+				WireHall();
+				return;
 			}
 
-			var unpaired = byTag.Where(kv => kv.Value.Count % 2 != 0).Select(kv => kv.Key).OrderBy(t => t, StringComparer.Ordinal).ToList();
-			string signature = string.Join("|", unpaired);
-			if (signature == lastSignature && (unpaired.Count == 0 ? hubObjects.Count == 0 : hubObjects.Count > 0))
+			string hubSignature = string.Join("|", unpaired);
+			if (hubSignature == lastSignature && (unpaired.Count == 0 ? hubObjects.Count == 0 : hubObjects.Count > 0))
 				return;
 
 			ClearHub();
-			lastSignature = signature;
+			lastSignature = hubSignature;
 			if (unpaired.Count == 0)
 			{
 				Connect();
@@ -152,8 +193,135 @@ namespace Valheim_Serverside
 			ServersidePlugin.logger.LogInfo($"Portal hub: paired {unpaired.Count} unpaired tag(s)");
 		}
 
+		internal static void WireHall()
+		{
+			if (!Enabled || ZDOMan.instance == null) return;
+			var portals = WorldPortals();
+			var gateways = new List<ZDO>();
+			foreach (ZDO zdo in portals)
+				if (IsGateway(zdo)) gateways.Add(zdo);
+			if (gateways.Count == 0) return;
+			gateways.Sort((a, b) =>
+			{
+				Vector3 pa = a.GetPosition(), pb = b.GetPosition();
+				int c = pa.x.CompareTo(pb.x);
+				return c != 0 ? c : pa.z.CompareTo(pb.z);
+			});
+			ZDO home = gateways[0];
+			ZDO lobby = FindHubLobby();
+			if (lobby == null || !lobby.IsValid())
+			{
+				foreach (ZDO gateway in gateways)
+					SetPortalConnection(gateway, ZDOID.None);
+				return;
+			}
+
+			foreach (ZDO gateway in gateways)
+				SetPortalConnection(gateway, lobby.m_uid);
+			SetPortalConnection(lobby, home.m_uid);
+
+			foreach (ZDO zdo in portals)
+			{
+				if (IsGateway(zdo) || !AllowedTag(TagOf(zdo))) continue;
+				ZDOID connected = zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
+				ZDO other = connected.IsNone() ? null : ZDOMan.instance.GetZDO(connected);
+				if (other != null && other.IsValid() && IsHubObject(other))
+					SetPortalConnection(zdo, home.m_uid);
+			}
+		}
+
+		private static void SetPortalConnection(ZDO zdo, ZDOID target)
+		{
+			if (zdo == null || !zdo.IsValid()) return;
+			zdo.SetOwner(ZDOMan.GetSessionID());
+			zdo.SetConnection(ZDOExtraData.ConnectionType.Portal, target);
+		}
+
+		internal static void HandleGatewayTag(TeleportWorld portal, string requested)
+		{
+			if (!Enabled || !portal || !portal.m_nview || !portal.m_nview.IsValid()) return;
+			ZDO zdo = portal.m_nview.GetZDO();
+			if (zdo == null || IsHubObject(zdo)) return;
+			FarmingSupport.CreatorAt(zdo.GetPosition(), out ZNetPeer peer);
+			if (string.IsNullOrWhiteSpace(requested))
+			{
+				Notify(peer, "Walk through this portal to pick a destination.");
+				return;
+			}
+			ZDO dest = FindDestination(requested.Trim());
+			if (dest == null)
+			{
+				Notify(peer, "No destination '" + requested.Trim() + "'. This portal is now tagged " + requested.Trim() + ".");
+				return;
+			}
+			zdo.Set(ZDOVars.s_tag, "");
+			TeleportPeer(peer, dest);
+			Notify(peer, "Traveling to " + TagOf(dest) + ".");
+		}
+
+		private static ZDO FindDestination(string tag)
+		{
+			ZDO exact = null, ignoreCase = null;
+			foreach (ZDO zdo in WorldPortals())
+			{
+				string name = TagOf(zdo);
+				if (name.Length == 0) continue;
+				if (string.Equals(name, tag, StringComparison.Ordinal)) { exact = zdo; break; }
+				if (ignoreCase == null && string.Equals(name, tag, StringComparison.OrdinalIgnoreCase)) ignoreCase = zdo;
+			}
+			return exact ?? ignoreCase;
+		}
+
+		private static void TeleportPeer(ZNetPeer peer, ZDO dest)
+		{
+			if (peer == null || dest == null || !dest.IsValid()) return;
+			Quaternion rot = dest.GetRotation();
+			Vector3 pos = dest.GetPosition() + rot * Vector3.forward * 1.5f + Vector3.up * 0.2f;
+			ZDO character = ZDOMan.instance != null ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
+			if (character != null && character.IsValid()) character.SetPosition(pos);
+			Player player = PlayerFromPeer(peer);
+			try
+			{
+				if (player) player.TeleportTo(pos, rot, true);
+				else if (ZRoutedRpc.instance != null)
+					ZRoutedRpc.instance.InvokeRoutedRPC(peer.m_uid, "RPC_TeleportPlayer", pos, rot, true);
+			}
+			catch (Exception e)
+			{
+				ServersidePlugin.logger.LogWarning("Portal teleport failed: " + e.GetType().Name);
+			}
+		}
+
+		private static Player PlayerFromPeer(ZNetPeer peer)
+		{
+			if (peer == null) return null;
+			foreach (Player player in Player.GetAllPlayers())
+			{
+				if (!player || !player.m_nview || !player.m_nview.IsValid()) continue;
+				if (player.m_nview.GetZDO().m_uid.Equals(peer.m_characterID)) return player;
+			}
+			return null;
+		}
+
+		private static void Notify(ZNetPeer peer, string text)
+		{
+			if (string.IsNullOrEmpty(text)) return;
+			try
+			{
+				if (ZRoutedRpc.instance != null && peer != null)
+					ZRoutedRpc.instance.InvokeRoutedRPC(peer.m_uid, "ShowMessage", (int)MessageHud.MessageType.TopLeft, "Northwatch: " + text);
+			}
+			catch (Exception) { }
+			if (peer != null && peer.m_rpc != null)
+			{
+				try { peer.m_rpc.Invoke("RemotePrint", "[server] " + text); }
+				catch (Exception) { }
+			}
+		}
+
 		private static void ClearHub()
 		{
+			hubLobbyId = ZDOID.None;
 			foreach (ZDOID id in hubObjects)
 			{
 				ZDO zdo = ZDOMan.instance.GetZDO(id);
@@ -173,6 +341,76 @@ namespace Valheim_Serverside
 			foreach (ZDO zdo in orphans) ZDOMan.instance.DestroyZDO(zdo);
 		}
 
+		private static ZDO FindHubLobby()
+		{
+			if (!hubLobbyId.IsNone())
+			{
+				ZDO known = ZDOMan.instance.GetZDO(hubLobbyId);
+				if (known != null && known.IsValid() && IsHubLobby(known)) return known;
+			}
+			foreach (ZDOID id in hubObjects)
+			{
+				ZDO zdo = ZDOMan.instance.GetZDO(id);
+				if (zdo != null && zdo.IsValid() && IsHubLobby(zdo)) return zdo;
+			}
+			List<ZDO>[] sectors = ZDOMan.instance.m_objectsBySector;
+			if (sectors == null) return null;
+			for (int s = 0; s < sectors.Length; s++)
+			{
+				List<ZDO> bucket = sectors[s];
+				if (bucket == null) continue;
+				foreach (ZDO zdo in bucket)
+					if (zdo != null && zdo.IsValid() && IsHubLobby(zdo)) return zdo;
+			}
+			return null;
+		}
+
+		private static void BuildHall(List<string> tags)
+		{
+			Quaternion faceDestinations = Quaternion.LookRotation(Vector3.forward);
+			Quaternion faceHome = Quaternion.LookRotation(Vector3.back);
+			const float spacing = 6f;
+			const float destZ = 10f;
+			int n = Math.Max(1, tags.Count);
+			int cols = Math.Max(3, (int)Math.Ceiling(Math.Sqrt(n)));
+			int rows = Math.Max(1, (int)Math.Ceiling(tags.Count / (float)cols));
+			PlacePlatform(cols, rows, spacing, destZ);
+
+			ZDO lobby = PlacePrefab(ResolvePortalPrefab(), hubOrigin, faceDestinations);
+			if (lobby != null)
+			{
+				lobby.Set(ZDOVars.s_tag, LobbyTag);
+				lobby.Set(LobbyMarker, 1L);
+				hubLobbyId = lobby.m_uid;
+			}
+			PlaceSign(hubOrigin + new Vector3(-2.4f, 2.2f, 1.2f), faceDestinations, "<color=yellow>Home");
+			PlaceSign(hubOrigin + new Vector3(2.4f, 2.2f, 1.2f), faceDestinations,
+				tags.Count == 0
+					? "<color=white>Name an outpost portal"
+					: "<color=white>Walk into a portal");
+
+			for (int i = 0; i < tags.Count; i++)
+			{
+				int row = i / cols, col = i % cols;
+				Vector3 pos = hubOrigin + new Vector3((col - (cols - 1) / 2f) * spacing, 0f, destZ + row * spacing);
+				ZDO portal = PlacePrefab(ResolvePortalPrefab(), pos, faceHome);
+				if (portal == null) continue;
+				portal.Set(ZDOVars.s_tag, tags[i]);
+				PlaceSign(pos + new Vector3(0f, 2.2f, -1.2f), faceHome, "<color=white>" + tags[i]);
+			}
+		}
+
+		private static void PlacePlatform(int cols, int rows, float spacing, float destZ)
+		{
+			float minX = -((cols - 1) / 2f) * spacing - 4f;
+			float maxX = ((cols - 1) / 2f) * spacing + 4f;
+			float minZ = -4f;
+			float maxZ = destZ + Math.Max(0, rows - 1) * spacing + 4f;
+			for (float x = minX; x <= maxX + 0.01f; x += 4f)
+				for (float z = minZ; z <= maxZ + 0.01f; z += 4f)
+					PlaceFloor(hubOrigin + new Vector3(x, -0.1f, z));
+		}
+
 		private static void BuildHub(List<string> tags)
 		{
 			int n = tags.Count;
@@ -186,8 +424,7 @@ namespace Valheim_Serverside
 				ZDO portal = PlacePrefab(ResolvePortalPrefab(), pos, Quaternion.identity);
 				if (portal == null) continue;
 				portal.Set(ZDOVars.s_tag, tags[i]);
-				ZDO sign = PlacePrefab("sign", pos + new Vector3(0f, 2f, -0.6f), Quaternion.identity);
-				if (sign != null) sign.Set(ZDOVars.s_text, "<color=white>" + tags[i]);
+				PlaceSign(pos + new Vector3(0f, 2f, -0.6f), Quaternion.identity, "<color=white>" + tags[i]);
 			}
 		}
 
@@ -206,6 +443,12 @@ namespace Valheim_Serverside
 				PlacePrefab(name, pos, Quaternion.identity);
 				return;
 			}
+		}
+
+		private static void PlaceSign(Vector3 pos, Quaternion rot, string text)
+		{
+			ZDO sign = PlacePrefab("sign", pos, rot);
+			if (sign != null) sign.Set(ZDOVars.s_text, text);
 		}
 
 		private static ZDO PlacePrefab(string prefabName, Vector3 pos, Quaternion rot)

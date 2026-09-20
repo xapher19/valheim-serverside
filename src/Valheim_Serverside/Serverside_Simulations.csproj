@@ -123,8 +123,10 @@
     <Compile Include="Configuration.cs" />
     <Compile Include="WorkBudgets.cs" />
     <Compile Include="FarmingSupport.cs" />
+    <Compile Include="FloraItemPlanting.cs" />
     <Compile Include="ProductionAreas.cs" />
     <Compile Include="PortalHub.cs" />
+    <Compile Include="Features\PortalHubHooks.cs" />
     <Compile Include="ServerFeedback.cs" />
     <Compile Include="Features\Production.cs" />
     <Compile Include="Features\Farming.cs" />

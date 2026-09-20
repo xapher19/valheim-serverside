@@ -1,10 +1,23 @@
+## 1.10.3 — No persistent base loading
+
+- Stop keeping bases, farms and stations loaded while nobody is nearby. The production supporting ring was still loading adjacent dungeons.
+- `[Production] Enabled` retains raid start/spawn guards and the optional empty-server world clock only.
+- Tighten plant/tree grow radius to 40% of vanilla (`[Farming] GrowSpaceScale`). Existing saplings pick this up when they next tick.
+- Untagged home portal walks into a labeled destination hall (vanilla portals + signs). Tagged world portals return home. Empty portals are no longer paired with each other.
+
+## 1.10.2 — Vanilla-client flora planting
+
+- Vanilla clients plant berry bushes, mushrooms, thistle, dandelion and similar pickable flora by dropping the matching harvest item on cultivated ground (default cost 5, 2 s settle, 2 m spacing). No client mod and no cultivator recipes.
+- The server consumes the drop, places the flora, and sets a piece creator on the planted object.
+- `[Farming] ItemPlanting` is on by default. `[Farming] PlaceAnywhere` also allows these drops off cultivated ground.
+
 ## 1.10.1 — Server-side farming, tighter production, portal hub
 
-- Keep player-planted berry bushes, mushrooms and flowers loaded under Production (`[Production] Flora`). Wild flora is ignored. Compatible with PlantEverything-planted world objects without installing PlantEverything on the dedicated server.
+- Keep player-planted berry bushes, mushrooms and flowers loaded under Production (`[Production] Flora`). Wild flora is ignored. Compatible with flora planted via item drops (1.10.2) without a client planting mod.
 - Require a piece creator for all production anchors so wild beehives/sap collectors and other world props no longer pin zones. Default `[Production] Livestock` to false.
 - Add `[PortalHub]` (on by default): generate a sky hub that pairs unpaired portal tags. Remove ServersideQoL AutoPortalHub when using this. Independently implemented; ServersideQoL source is not bundled.
 - Add optional `[Farming]` retunes (off by default): flora respawn minutes, crop grow times, and PlaceAnywhere / sunlight / growth-space relaxation for server simulation only.
-- Do not add cultivator recipes, client UI or ServerSync. Clients still need PlantEverything (or similar) to plant new flora.
+- Do not add cultivator recipes, client UI or ServerSync. Extra flora is planted by dropping harvest items (1.10.2).
 
 ## 1.10.0 — Persistent production and bounded server work
 
