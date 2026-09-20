@@ -19,10 +19,10 @@ namespace Valheim_Serverside.Features
 		[HarmonyPatch(typeof(Game), "FindRandomUnconnectedPortal")]
 		public static class SkipEmptyPairing
 		{
-			static void Postfix(ZDO portal, string tag, ref ZDO __result)
+			static void Postfix(ZDO skip, string tag, ref ZDO __result)
 			{
 				if (string.IsNullOrEmpty(tag)) __result = null;
-				else if (PortalHub.IsHubPortal(portal) || PortalHub.IsHubPortal(__result)) __result = null;
+				else if (PortalHub.IsHubPortal(skip) || PortalHub.IsHubPortal(__result)) __result = null;
 			}
 		}
 
