@@ -109,12 +109,7 @@ namespace Valheim_Serverside
 			Heightmap.Biome biome = WorldGenerator.instance != null
 				? WorldGenerator.instance.GetBiome(zdo.GetPosition())
 				: Heightmap.Biome.None;
-			string biomeName = biome.ToString();
-			if (Localization.instance)
-			{
-				string localized = Localization.instance.Localize("$biome_" + biome.ToString().ToLowerInvariant());
-				if (!string.IsNullOrEmpty(localized) && localized[0] != '$') biomeName = localized;
-			}
+			string biomeName = biome == Heightmap.Biome.None ? "Portal" : biome.ToString();
 			var used = new HashSet<string>(WorldPortals().Select(p => p.GetString(ZDOVars.s_tag, "")));
 			for (int i = 1; i <= 1000; i++)
 			{
