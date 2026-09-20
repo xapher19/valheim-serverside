@@ -1,3 +1,8 @@
+## 1.10.10 — Stop portal reconnect spam in hall mode
+
+- Take over vanilla `ConnectPortals` while an untagged home portal owns the destination hall. Vanilla was re-pairing hall twins every 5s, then Northwatch rewired them home — endless "Connected portals" log spam and activate VFX.
+- Wire hall destinations one-way to world outposts, and send unpaired tagged outposts home, without fighting the 5s reconnect loop.
+
 ## 1.10.9 — Portal hall cargo and durability hotfix
 
 - Enforce vanilla teleportable rules on the untagged home portal so ores and other forbidden cargo cannot enter the hall.

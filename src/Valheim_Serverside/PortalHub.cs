@@ -113,6 +113,72 @@ namespace Valheim_Serverside
 
 		private static bool IsHubLobby(ZDO zdo) => IsHubObject(zdo) && zdo.GetLong(LobbyMarker, 0L) != 0L;
 
+		internal static bool IsHubPortal(ZDO zdo) => IsHubObject(zdo);
+
+		/// <summary>
+		/// When an untagged home portal owns the destination hall, replace vanilla
+		/// ConnectPortals so it cannot fight hall wiring every 5 seconds.
+		/// </summary>
+		internal static bool TryHandleConnectPortals()
+		{
+			if (!Enabled || ZDOMan.instance == null) return false;
+			int gateways = 0;
+			foreach (ZDO zdo in WorldPortals())
+				if (IsGateway(zdo)) gateways++;
+			if (gateways == 0) return false;
+			PairWorldPortalsOnly();
+			WireHall();
+			return true;
+		}
+
+		private static void PairWorldPortalsOnly()
+		{
+			var byTag = new Dictionary<string, List<ZDO>>(StringComparer.Ordinal);
+			foreach (ZDO zdo in WorldPortals())
+			{
+				string tag = TagOf(zdo);
+				if (string.IsNullOrEmpty(tag) || !AllowedTag(tag)) continue;
+				if (!byTag.TryGetValue(tag, out List<ZDO> list))
+					byTag[tag] = list = new List<ZDO>();
+				list.Add(zdo);
+			}
+			foreach (KeyValuePair<string, List<ZDO>> kv in byTag)
+			{
+				List<ZDO> list = kv.Value;
+				if (list.Count < 2) continue;
+				list.Sort((a, b) =>
+				{
+					Vector3 pa = a.GetPosition(), pb = b.GetPosition();
+					int c = pa.x.CompareTo(pb.x);
+					return c != 0 ? c : pa.z.CompareTo(pb.z);
+				});
+				var free = new List<ZDO>();
+				foreach (ZDO zdo in list)
+				{
+					if (IsPairedWithWorldPeer(zdo)) continue;
+					free.Add(zdo);
+				}
+				for (int i = 0; i + 1 < free.Count; i += 2)
+				{
+					ZDO a = free[i], b = free[i + 1];
+					SetPortalConnection(a, b.m_uid);
+					SetPortalConnection(b, a.m_uid);
+				}
+			}
+		}
+
+		private static bool IsPairedWithWorldPeer(ZDO zdo)
+		{
+			if (zdo == null || !zdo.IsValid()) return false;
+			ZDOID connected = zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
+			if (connected.IsNone()) return false;
+			ZDO other = ZDOMan.instance.GetZDO(connected);
+			if (other == null || !other.IsValid() || IsHubObject(other) || IsGateway(other)) return false;
+			if (!string.Equals(TagOf(zdo), TagOf(other), StringComparison.Ordinal)) return false;
+			ZDOID back = other.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
+			return back.Equals(zdo.m_uid);
+		}
+
 		private static void RefreshPortalPrefabIndex()
 		{
 			portalPrefabs.Clear();
@@ -332,23 +398,48 @@ namespace Valheim_Serverside
 			if (lobby == null || !lobby.IsValid())
 				return;
 
-			// Only dirty / force-send when a link actually changes. Re-applying the same
-			// connection every scan makes vanilla clients replay the portal activate VFX.
+			// Asymmetric on purpose: ForceSetConnection is one-way. Hall destinations point at
+			// world outposts; outposts (unless mutually paired) point at the untagged home portal.
 			bool changed = false;
 			foreach (ZDO gateway in gateways)
 				changed |= SetPortalConnection(gateway, lobby.m_uid);
 			changed |= SetPortalConnection(lobby, home.m_uid);
 
+			foreach (ZDOID id in hubObjects)
+			{
+				ZDO hall = ZDOMan.instance.GetZDO(id);
+				if (hall == null || !hall.IsValid() || !IsHubObject(hall) || IsHubLobby(hall)) continue;
+				string tag = TagOf(hall);
+				if (!AllowedTag(tag)) continue;
+				ZDO dest = FindWorldDestination(tag);
+				if (dest != null)
+					changed |= SetPortalConnection(hall, dest.m_uid);
+			}
+
 			foreach (ZDO zdo in portals)
 			{
 				if (IsGateway(zdo) || !AllowedTag(TagOf(zdo))) continue;
-				ZDOID connected = zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
-				ZDO other = connected.IsNone() ? null : ZDOMan.instance.GetZDO(connected);
-				if (other != null && other.IsValid() && IsHubObject(other))
-					changed |= SetPortalConnection(zdo, home.m_uid);
+				if (IsPairedWithWorldPeer(zdo)) continue;
+				changed |= SetPortalConnection(zdo, home.m_uid);
 			}
 			if (changed)
 				PublishPortal(lobby, gateways, portals);
+		}
+
+		private static ZDO FindWorldDestination(string tag)
+		{
+			ZDO fallback = null;
+			foreach (ZDO zdo in WorldPortals())
+			{
+				if (!string.Equals(TagOf(zdo), tag, StringComparison.Ordinal)) continue;
+				if (IsPairedWithWorldPeer(zdo))
+				{
+					if (fallback == null) fallback = zdo;
+					continue;
+				}
+				return zdo;
+			}
+			return fallback;
 		}
 
 		private static bool SetPortalConnection(ZDO zdo, ZDOID target)
@@ -814,6 +905,7 @@ namespace Valheim_Serverside
 
 		private static void Connect()
 		{
+			if (TryHandleConnectPortals()) return;
 			if (Game.instance) Game.instance.ConnectPortals();
 		}
 	}

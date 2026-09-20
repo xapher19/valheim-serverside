@@ -11,15 +11,18 @@ namespace Valheim_Serverside.Features
 		[HarmonyPatch(typeof(Game), "ConnectPortals")]
 		public static class ConnectPortalsWire
 		{
-			static void Postfix() => PortalHub.WireHall();
+			// Vanilla reconnects every 5s. In hall mode that re-pairs world tags with hall
+			// twins, then WireHall rewires them home — endless "Connected portals" spam.
+			static bool Prefix() => !PortalHub.TryHandleConnectPortals();
 		}
 
 		[HarmonyPatch(typeof(Game), "FindRandomUnconnectedPortal")]
 		public static class SkipEmptyPairing
 		{
-			static void Postfix(string tag, ref ZDO __result)
+			static void Postfix(ZDO portal, string tag, ref ZDO __result)
 			{
 				if (string.IsNullOrEmpty(tag)) __result = null;
+				else if (PortalHub.IsHubPortal(portal) || PortalHub.IsHubPortal(__result)) __result = null;
 			}
 		}
 
