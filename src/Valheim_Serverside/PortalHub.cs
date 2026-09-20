@@ -23,6 +23,8 @@ namespace Valheim_Serverside
 		private static readonly int HubMarker = "nw_portal_hub".GetStableHashCode();
 		private static readonly int LobbyMarker = "nw_portal_lobby".GetStableHashCode();
 		private static readonly List<ZDOID> hubObjects = new List<ZDOID>();
+		private static readonly List<ZDOID> gatewayIds = new List<ZDOID>();
+		private static readonly Dictionary<long, double> lastEnter = new Dictionary<long, double>();
 		private static readonly HashSet<int> portalPrefabs = new HashSet<int>();
 		private static string lastSignature = "";
 		private static double nextScan;
@@ -41,6 +43,7 @@ namespace Valheim_Serverside
 			if (!Enabled || ZDOMan.instance == null || !ZNetScene.instance || !ZNet.instance || !ZNet.instance.IsServer())
 				return;
 			if (!ZoneSystem.instance || !ZoneSystem.instance.LocationsGenerated) return;
+			TryEnterGateways();
 			double now = Time.realtimeSinceStartupAsDouble;
 			if (now < nextScan) return;
 			nextScan = now + 2;
@@ -170,6 +173,9 @@ namespace Valheim_Serverside
 					ServersidePlugin.logger.LogInfo(
 						$"Portal hall: {gateways} untagged home portal(s), {unpaired.Count} destination(s). "
 						+ "Walk through an untagged home portal to pick a labeled destination. Tagged world portals return home.");
+					NotifyAll(unpaired.Count == 0
+						? "Home portal is ready. Name an outpost portal to add a destination, then walk through the untagged home portal."
+						: "Home portal is ready. Walk through it to pick a destination.");
 				}
 				Connect();
 				WireHall();
@@ -200,13 +206,18 @@ namespace Valheim_Serverside
 			var gateways = new List<ZDO>();
 			foreach (ZDO zdo in portals)
 				if (IsGateway(zdo)) gateways.Add(zdo);
-			if (gateways.Count == 0) return;
+			if (gateways.Count == 0)
+			{
+				gatewayIds.Clear();
+				return;
+			}
 			gateways.Sort((a, b) =>
 			{
 				Vector3 pa = a.GetPosition(), pb = b.GetPosition();
 				int c = pa.x.CompareTo(pb.x);
 				return c != 0 ? c : pa.z.CompareTo(pb.z);
 			});
+			RememberGateways(gateways);
 			ZDO home = gateways[0];
 			ZDO lobby = FindHubLobby();
 			if (lobby == null || !lobby.IsValid())
@@ -219,6 +230,7 @@ namespace Valheim_Serverside
 			foreach (ZDO gateway in gateways)
 				SetPortalConnection(gateway, lobby.m_uid);
 			SetPortalConnection(lobby, home.m_uid);
+			PublishPortal(lobby, gateways, portals);
 
 			foreach (ZDO zdo in portals)
 			{
@@ -235,6 +247,86 @@ namespace Valheim_Serverside
 			if (zdo == null || !zdo.IsValid()) return;
 			zdo.SetOwner(ZDOMan.GetSessionID());
 			zdo.SetConnection(ZDOExtraData.ConnectionType.Portal, target);
+		}
+
+		private static void RememberGateways(List<ZDO> gateways)
+		{
+			gatewayIds.Clear();
+			if (gateways == null) return;
+			foreach (ZDO zdo in gateways)
+				if (zdo != null && zdo.IsValid()) gatewayIds.Add(zdo.m_uid);
+		}
+
+		private static void PublishPortal(ZDO lobby, List<ZDO> gateways, List<ZDO> world)
+		{
+			if (ZNet.instance == null || ZDOMan.instance == null) return;
+			var ids = new List<ZDOID>();
+			if (lobby != null && lobby.IsValid()) ids.Add(lobby.m_uid);
+			if (gateways != null)
+				foreach (ZDO gateway in gateways)
+					if (gateway != null && gateway.IsValid()) ids.Add(gateway.m_uid);
+			foreach (ZDOID id in hubObjects)
+			{
+				ZDO zdo = ZDOMan.instance.GetZDO(id);
+				if (zdo != null && zdo.IsValid()) ids.Add(zdo.m_uid);
+			}
+			if (world != null)
+				foreach (ZDO zdo in world)
+					if (zdo != null && zdo.IsValid() && !IsGateway(zdo) && AllowedTag(TagOf(zdo)))
+						ids.Add(zdo.m_uid);
+			ForceSendAll(ids);
+		}
+
+		private static void ForceSendAll(List<ZDOID> ids)
+		{
+			if (ids == null || ids.Count == 0 || ZNet.instance == null || ZDOMan.instance == null) return;
+			foreach (ZNetPeer peer in ZNet.instance.GetPeers())
+			{
+				if (peer == null || !peer.IsReady()) continue;
+				for (int i = 0; i < ids.Count; i++)
+					ZDOMan.instance.ForceSendZDO(peer.m_uid, ids[i]);
+			}
+		}
+
+		private static void PublishToPeer(ZNetPeer peer, ZDO dest)
+		{
+			if (peer == null || !peer.IsReady() || ZDOMan.instance == null) return;
+			if (dest != null && dest.IsValid())
+				ZDOMan.instance.ForceSendZDO(peer.m_uid, dest.m_uid);
+			for (int i = 0; i < hubObjects.Count; i++)
+				ZDOMan.instance.ForceSendZDO(peer.m_uid, hubObjects[i]);
+			for (int i = 0; i < gatewayIds.Count; i++)
+				ZDOMan.instance.ForceSendZDO(peer.m_uid, gatewayIds[i]);
+		}
+
+		private static void TryEnterGateways()
+		{
+			if (ZNet.instance == null || gatewayIds.Count == 0) return;
+			ZDO lobby = FindHubLobby();
+			if (lobby == null || !lobby.IsValid()) return;
+			double now = Time.realtimeSinceStartupAsDouble;
+			const float radiusSq = 2.25f * 2.25f;
+			foreach (ZNetPeer peer in ZNet.instance.GetPeers())
+			{
+				if (peer == null || !peer.IsReady()) continue;
+				if (lastEnter.TryGetValue(peer.m_uid, out double at) && now - at < 2.5) continue;
+				ZDO character = ZDOMan.instance.GetZDO(peer.m_characterID);
+				if (character == null || !character.IsValid()) continue;
+				Vector3 pos = character.GetPosition();
+				for (int i = 0; i < gatewayIds.Count; i++)
+				{
+					ZDO gateway = ZDOMan.instance.GetZDO(gatewayIds[i]);
+					if (!IsGateway(gateway)) continue;
+					Vector3 portal = gateway.GetPosition();
+					float dx = portal.x - pos.x, dz = portal.z - pos.z;
+					if (dx * dx + dz * dz > radiusSq || Math.Abs(portal.y - pos.y) > 3f) continue;
+					lastEnter[peer.m_uid] = now;
+					PublishToPeer(peer, lobby);
+					TeleportPeer(peer, lobby);
+					Notify(peer, "Choose a destination.");
+					break;
+				}
+			}
 		}
 
 		internal static void HandleGatewayTag(TeleportWorld portal, string requested)
@@ -275,6 +367,8 @@ namespace Valheim_Serverside
 		private static void TeleportPeer(ZNetPeer peer, ZDO dest)
 		{
 			if (peer == null || dest == null || !dest.IsValid()) return;
+			if (ZDOMan.instance != null)
+				ZDOMan.instance.ForceSendZDO(peer.m_uid, dest.m_uid);
 			Quaternion rot = dest.GetRotation();
 			Vector3 pos = dest.GetPosition() + rot * Vector3.forward * 1.5f + Vector3.up * 0.2f;
 			ZDO character = ZDOMan.instance != null ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
@@ -301,6 +395,13 @@ namespace Valheim_Serverside
 				if (player.m_nview.GetZDO().m_uid.Equals(peer.m_characterID)) return player;
 			}
 			return null;
+		}
+
+		private static void NotifyAll(string text)
+		{
+			if (ZNet.instance == null) return;
+			foreach (ZNetPeer peer in ZNet.instance.GetPeers())
+				Notify(peer, text);
 		}
 
 		private static void Notify(ZNetPeer peer, string text)

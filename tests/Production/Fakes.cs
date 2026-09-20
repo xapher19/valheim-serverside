@@ -204,7 +204,11 @@ public class ItemDrop : UnityEngine.Object
 public class ZRoutedRpc
 {
     public static ZRoutedRpc instance=new();public static long Everybody=0;public List<string> messages=new();
-    public void InvokeRoutedRPC(long id,string m,params object[] args)=>messages.Add((string)args[1]);
+    public void InvokeRoutedRPC(long id,string m,params object[] args)
+    {
+        foreach (var a in args)
+            if (a is string s) { messages.Add(s); break; }
+    }
 }
 public class MessageHud {public enum MessageType{TopLeft}}
 namespace PluginConfiguration

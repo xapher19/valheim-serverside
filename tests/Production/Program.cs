@@ -134,6 +134,7 @@ class Program
         Prefab("portal_wood",new TeleportWorld());
         Prefab("sign",new object());
         Prefab("wood_floor_4x4",new object());
+        planterChar.pos=new Vector3(5000,0,0);
         var homePortal=Add(200,"portal_wood");
         var swamp=Add(201,"portal_wood",80); swamp.Set(ZDOVars.s_tag,"Swamp");
         PortalHub.Installed=true;
@@ -145,6 +146,15 @@ class Program
             if (z.GetLong("nw_portal_lobby".GetStableHashCode(),0)!=0) lobby=z;
         Check(lobby!=null && homePortal.connection.Equals(lobby.m_uid),"Home portal does not walk into the hall");
         Check(lobby.connection.Equals(homePortal.m_uid),"Hall Home portal does not return to the untagged portal");
+        Check(ZDOMan.instance.forced.Exists(f=>f.Item2.Equals(lobby.m_uid)),"Hall lobby was not sent to vanilla clients");
+        player.pos=homePortal.GetPosition();
+        ZDOMan.instance.forced.Clear();
+        PortalHub.Tick();
+        Check(Math.Abs(player.pos.x-lobby.GetPosition().x)<1 && Math.Abs(player.pos.z-lobby.GetPosition().z)>0.5,"Walking into the untagged portal did not teleport to the hall");
+        ZDOMan.instance.DestroyZDO(swamp);
+        Time.realtimeSinceStartupAsDouble=203;
+        PortalHub.Tick();
+        Check(PortalHub.Status.Contains("destination hall"),"Hall vanished when no tagged destinations remained");
         PortalHub.Installed=false;
         Console.WriteLine($"Passed {checks} production/performance assertions.");
     }

@@ -6,9 +6,15 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.4**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.5**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.5 — Walk through an untagged home portal
+
+- Walking into an untagged home portal teleports vanilla clients into the labeled destination hall. 1.10.4 could link the portal without the client ever arriving, because the hall is outside normal world sync.
+- **Leave the home portal untagged.** Name at least one outpost portal (anything except `Home`). Then walk into the glowing home portal — do not only place it or press E to set a tag. In the hall, walk into the portal whose sign you want. Tagged world portals return home.
+- With no named outposts yet, the hall still appears; a sign tells you to name one.
 
 ### 1.10.4 — Consume dropped harvest into a flora grid
 
@@ -147,7 +153,7 @@ Clients need nothing.
 | `[Server] SaveAnnouncements` | true | Show save start/result and console-shutdown announcements to vanilla clients. |
 | `[Production] Enabled` | true | Raid start/spawn guards and optional empty-world clock. Does **not** keep bases loaded. Restart required. |
 | `[Production] AdvanceTimeWhenEmpty` | true | Advance world time (days/weather) with no players. No offline catch-up. |
-| `[PortalHub] Enabled` | true | Untagged home portal walks into a labeled destination hall. Tagged world portals return home. |
+| `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. |
 | `[PortalHub] Include` / `Exclude` | `*` / empty | Wildcard tag filters for hub pairing. |
 | `[PortalHub] AutoNameNewPortals` | false | Auto-name empty portal tags before pairing. |
 | `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | Biome name + unique integer. |
@@ -336,7 +342,7 @@ A raid can start/spawn only with a connected character in its configured event r
 |---|---|---|
 | `[Production] Enabled` | true | Raid start/spawn guards; does not keep bases loaded; restart required. |
 | `[Production] AdvanceTimeWhenEmpty` | true | World time, including day/weather, advances with no players. No offline catch-up. |
-| `[PortalHub] Enabled` | true | Untagged home portal walks into a labeled destination hall; tagged world portals return home. Remove ServersideQoL AutoPortalHub first. |
+| `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. Remove ServersideQoL AutoPortalHub first. |
 | `[PortalHub] Include` / `Exclude` | `*` / empty | Wildcard filters on portal tags. |
 | `[PortalHub] AutoNameNewPortals` | false | Name empty tags using AutoNameFormat before pairing. |
 | `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | `{0}`=biome name, `{1}`=unique integer. |

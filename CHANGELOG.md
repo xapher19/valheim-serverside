@@ -1,3 +1,9 @@
+## 1.10.5 — Walk through an untagged home portal
+
+- Walking into an untagged home portal now teleports vanilla clients into the destination hall. The hall sits outside normal world sync, so 1.10.4 could wire the portal without the client ever arriving.
+- The server force-sends hall and destination portal objects to connected players, then teleports anyone who steps into an untagged home portal.
+- An untagged portal with no named outposts still builds the hall (a sign tells you to name one). Tagged world portals return home.
+
 ## 1.10.4 — Consume dropped harvest into a flora grid
 
 - Dropping a stack on cultivated ground plants as many bushes as the stack pays for (50 blueberries → 10 bushes at cost 5) in a spaced grid, then destroys or reduces the drop so it cannot be farmed infinitely.
