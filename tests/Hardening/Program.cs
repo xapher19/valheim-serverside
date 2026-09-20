@@ -45,6 +45,17 @@ static class Program
         PatchClassProcessor.Fail = typeof(Core.Second);
         Check(!Install(new Diagnostics(), new Core()), "Core failure accepted with diagnostics");
         Check(!Active(typeof(Diagnostics.SendObservation)), "Core rollback retained diagnostics");
+        Reset();
+        PatchClassProcessor.Fail = typeof(Production.RaidGuard);
+        Check(Install(new Core(), new Production()), "Production failure disabled Core");
+        Check(!Active(typeof(Production.Anchor)) && !ProductionAreas.Installed, "Production survives a raid guard failure");
+        Reset();
+        Check(Install(new Core(), new Production()), "Production installation failed");
+        Check(ProductionAreas.Installed, "Successful production feature not enabled");
+        Reset();
+        PatchClassProcessor.Fail = typeof(Core.Second);
+        Check(!Install(new Production(), new Core()), "Core failure accepted with production");
+        Check(!ProductionAreas.Installed && !Active(typeof(Production.Anchor)), "Core rollback left production active");
         var broken = typeof(Performance.ZNet_SaveWorld_Timing);
         Reset();
         PatchClassProcessor.Fail = broken;
@@ -143,6 +154,15 @@ static class Program
         ZNet.Dedicated = false;
         TargetFpsVerifier.Tick(95);
         Check(Application.Writes == writes, "Non-dedicated client target modified");
+        ZNet.Dedicated = true;
+        Configuration.idleFps.Value = 30;
+        Configuration.serverTargetFps.Value = 60;
+        TargetFpsVerifier.Start(100);
+        TargetFpsVerifier.Tick(105);
+        ZNet.Peers.Clear(); TargetFpsVerifier.Tick(106);
+        Check(Application.targetFrameRate == 30, "Empty server did not lower cap immediately");
+        ZNet.Peers.Add(1); TargetFpsVerifier.Tick(107);
+        Check(Application.targetFrameRate == 60, "Joining peer did not immediately restore cap");
         Console.WriteLine($"Passed {checks} hardening assertions.");
     }
 }

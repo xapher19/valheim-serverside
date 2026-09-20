@@ -47,41 +47,24 @@ namespace Valheim_Serverside.Features
 			every frame -- never more than once per frame.
 		*/
 		{
-			private static double s_owed;
-			private static int s_next;
-			private static double s_last = -1;
-
-			static bool Prefix(ZDOMan __instance)
-			{
-				float interval = Configuration.sendIntervalMs.Value / 1000f;
-				if (interval <= 0f)
-				{
-					return true;
-				}
-				double now = Time.realtimeSinceStartupAsDouble;
-				double elapsed = s_last < 0 ? 0 : now - s_last;
-				s_last = now;
-				List<ZDOMan.ZDOPeer> peers = __instance.m_peers;
-				int count = peers.Count;
-				if (count == 0)
-				{
-					s_owed = 0;
-					return false;
-				}
-				s_owed = Math.Min(s_owed + count * elapsed / interval, count);
-				int sends = (int)s_owed;
-				s_owed -= sends;
-				for (int i = 0; i < sends; i++)
-				{
-					if (s_next >= count)
-					{
-						s_next = 0;
-					}
-					__instance.SendZDOs(peers[s_next++], flush: false);
-				}
-				return false;
-			}
-		}
+            private static readonly SendBudget budget = new SendBudget();
+            static bool Prefix(ZDOMan __instance)
+            {
+                double interval = Configuration.sendIntervalMs.Value / 1000.0;
+                if (interval <= 0) return true;
+                var peers = __instance.m_peers;
+                int count = peers.Count;
+                int sends = budget.Due(Time.realtimeSinceStartupAsDouble, count, interval);
+                long started = Stopwatch.GetTimestamp();
+                for (int i = 0; i < sends; i++)
+                {
+                    __instance.SendZDOs(peers[budget.Take(count)], flush: false);
+                    float limit = Configuration.sendBudgetMs.Value;
+                    if (limit > 0 && (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency >= limit) break;
+                }
+                return false;
+            }
+        }
 
 		[HarmonyPatch(typeof(ZDOMan), "SendZDOs")]
 		public static class ZDOMan_SendZDOs_Timing
@@ -111,7 +94,7 @@ namespace Valheim_Serverside.Features
 			// Bind by index so game parameter renames cannot break Harmony injection.
 			static void Prefix(ref int __0)
 			{
-				int fps = Configuration.serverTargetFps.Value;
+				int fps = TargetFpsVerifier.DesiredTarget;
 				// Called before ZNet exists (GraphicsSettingsManager.Awake), so the plugin's own check is used.
 				if (fps <= 0 || !ServersidePlugin.IsDedicated())
 				{

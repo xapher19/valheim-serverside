@@ -99,7 +99,8 @@ namespace Valheim_Serverside
 					case "quit":
 					case "shutdown":
 						// Quitting runs Game.OnApplicationQuit, which saves the world before shutting down.
-						Reply("saving world and shutting down");
+						ServerFeedback.Announce("Server is saving and shutting down.");
+                        Reply("saving world and shutting down");
 						Application.Quit();
 						break;
 					case "players":

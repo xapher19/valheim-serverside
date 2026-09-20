@@ -150,6 +150,7 @@ namespace Valheim_Serverside.Features
 		*/
 		{
 			private static readonly HashSet<ZDO> s_seen = new HashSet<ZDO>();
+            private static readonly HashSet<Vector2s> s_peerZones = new HashSet<Vector2s>();
 
 			private static bool Prefix(ZNetScene __instance)
 			{
@@ -162,13 +163,16 @@ namespace Valheim_Serverside.Features
 				// 1.0: one SimulationDistance replaces m_activeArea/m_activeDistantArea. Vanilla reads
 				// the synced value from ZNet here, not ZoneSystem's copy.
 				SimulationDistance distance = ZNet.instance.GetSyncedSimulationDistance();
+                s_peerZones.Clear();
 				foreach (ZNetPeer znetPeer in ZNet.instance.GetConnectedPeers())
 				{
 					Vector2s zone = ZoneSystem.GetZone(znetPeer.GetRefPos());
-					ZDOMan.instance.FindSectorObjects(zone, distance, currentObjects, currentDistantObjects);
+					if (s_peerZones.Add(zone))
+                        ZDOMan.instance.FindSectorObjects(zone, distance, currentObjects, currentDistantObjects);
 				}
 
-				RemoveDuplicates(currentObjects);
+				ProductionAreas.AddObjects(currentObjects);
+                RemoveDuplicates(currentObjects);
 				RemoveDuplicates(currentDistantObjects);
 				__instance.CreateObjects(currentObjects, currentDistantObjects);
 				__instance.RemoveObjects(currentObjects, currentDistantObjects);
@@ -325,7 +329,8 @@ namespace Valheim_Serverside.Features
 					__instance.m_updateTimer = 0f;
 					// Vanilla's CreateLocalZones/CreateGhostZones for ZNet.GetReferencePosition() are left out:
 					// on a dedicated server that position is outside the world.
-					__instance.UpdateTTL(0.1f);
+					ProductionAreas.LoadZones(__instance);
+                    __instance.UpdateTTL(0.1f);
 					if (ZNet.instance.IsServer())
 					{
 						long started = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -397,7 +402,7 @@ namespace Valheim_Serverside.Features
 					}
 					// 1.0: active-area checks take a position instead of a sector.
 					Vector3 position = zdo.GetPosition();
-					bool anyPlayerInArea = false;
+					bool anyPlayerInArea = ProductionAreas.Contains(position);
 					foreach (ZNetPeer peer in ZNet.instance.GetPeers())
 					{
 						if (ZNetScene.InActiveArea(position, ZoneSystem.GetZone(peer.GetRefPos())))
@@ -519,22 +524,19 @@ namespace Valheim_Serverside.Features
 			Return spawners if there are nearby players in the event area.
 		*/
 		{
-			if (instance.m_activeEvent == null)
-			{
-				return null;
-			}
-
-			Vector3 spawnSystemPosition = spawnSystem.m_nview.GetZDO().GetPosition();
-			foreach (Player player in Player.GetAllPlayers())
-			{
-				if (ZNetScene.InActiveArea(spawnSystemPosition, ZoneSystem.GetZone(player.transform.position))
-					&& instance.IsInsideRandomEventArea(instance.m_randomEvent, player.transform.position))
-				{
-					return instance.GetCurrentSpawners();
-				}
-			}
-			return null;
-		}
+			RandomEvent active = instance.m_activeEvent;
+            if (active == null || spawnSystem.m_nview == null || !spawnSystem.m_nview.IsValid()) return null;
+            Vector3 position = spawnSystem.m_nview.GetZDO().GetPosition();
+            foreach (ZNetPeer peer in ZNet.instance.GetConnectedPeers())
+            {
+                ZDO player = ZDOMan.instance.GetZDO(peer.m_characterID);
+                if (player != null && player.GetOwner() == peer.m_uid
+                    && ZNetScene.InActiveArea(position, ZoneSystem.GetZone(player.GetPosition()))
+                    && instance.IsInsideRandomEventArea(active, player.GetPosition()))
+                    return instance.GetCurrentSpawners();
+            }
+            return null;
+        }
 
 		[HarmonyPatch(typeof(SpawnSystem), "UpdateSpawning")]
 		public static class SpawnSystem_UpdateSpawning_Patch

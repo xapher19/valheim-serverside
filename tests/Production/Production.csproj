@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+<ItemGroup>
+<Compile Include="../../src/Valheim_Serverside/WorkBudgets.cs" />
+<Compile Include="../../src/Valheim_Serverside/ProductionAreas.cs" />
+<Compile Include="../../src/Valheim_Serverside/Features/Production.cs" />
+<Compile Include="../../src/Valheim_Serverside/ServerFeedback.cs" />
+<Compile Include="../../src/Valheim_Serverside/Features/InteractionReliability.cs" />
+</ItemGroup>
+</Project>

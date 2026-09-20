@@ -8,6 +8,17 @@ namespace Valheim_Serverside.Features
 	internal static class TargetFpsVerifier
 	{
 		private static double nextCheck;
+        private static int lastModeTarget = -1;
+        internal static int DesiredTarget
+        {
+            get
+            {
+                int active = Configuration.serverTargetFps.Value;
+                if (active <= 0) return active;
+                int idle = Configuration.idleFps.Value;
+                return idle > 0 && ZNet.instance && ZNet.instance.GetPeers().Count == 0 ? Mathf.Clamp(idle, 30, Mathf.Clamp(active, 30, 240)) : active;
+            }
+        }
 		private static int lastConfigured = int.MinValue;
 		private static bool fallbackAttempted;
 		private static bool mismatchReported;
@@ -16,17 +27,29 @@ namespace Valheim_Serverside.Features
 		internal static void Start(double now)
 		{
 			nextCheck = now + 5;
+            lastModeTarget = -1;
 			lastConfigured = int.MinValue;
 			fallbackAttempted = mismatchReported = verified = false;
 		}
 
 		internal static void Tick(double now)
 		{
-			if (now < nextCheck) return;
+			if (!ServersidePlugin.IsDedicated()) return;
+            int target = DesiredTarget;
+            if (lastModeTarget != target)
+            {
+                if (lastModeTarget >= 0 && target > 0)
+                {
+                    Application.targetFrameRate = Mathf.Clamp(target, 30, 240);
+                    nextCheck = now;
+                }
+                lastModeTarget = target;
+            }
+            if (now < nextCheck) return;
 			nextCheck = now + 10;
 			if (!ServersidePlugin.IsDedicated()) return;
 
-			int configured = Configuration.serverTargetFps.Value;
+			int configured = DesiredTarget;
 			if (configured != lastConfigured)
 			{
 				lastConfigured = configured;
