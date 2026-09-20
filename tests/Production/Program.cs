@@ -156,15 +156,28 @@ class Program
         Check(lobby.connection.Equals(homePortal.m_uid),"Hall Home portal does not return to the untagged portal");
         Check(hallHasMountains,"Tagged portal outside loaded sectors was omitted from the hall");
         Check(ZDOMan.instance.forced.Exists(f=>f.Item2.Equals(lobby.m_uid)),"Hall lobby was not sent to vanilla clients");
+        Player.all.Clear();
+        var traveler=new Player{m_nview=new ZNetView{zdo=player},teleportable=true};
+        Player.all.Add(traveler);
         player.pos=homePortal.GetPosition();
+        peer.pos=player.pos;
         ZDOMan.instance.forced.Clear();
         PortalHub.Tick();
         Check(Math.Abs(player.pos.x-lobby.GetPosition().x)<1 && Math.Abs(player.pos.z-lobby.GetPosition().z)>0.5,"Walking into the untagged portal did not teleport to the hall");
+        player.pos=homePortal.GetPosition();
+        peer.pos=player.pos;
+        traveler.teleportable=false;
+        Time.realtimeSinceStartupAsDouble=206;
+        Vector3 blocked=player.pos;
+        PortalHub.Tick();
+        Check(Math.Abs(player.pos.x-blocked.x)<0.1 && Math.Abs(player.pos.z-blocked.z)<0.1,"Forbidden cargo still entered the hall");
+        traveler.teleportable=true;
         ZDOMan.instance.DestroyZDO(swamp);
-        Time.realtimeSinceStartupAsDouble=203;
+        Time.realtimeSinceStartupAsDouble=209;
         PortalHub.Tick();
         Check(PortalHub.Status.Contains("destination hall"),"Hall vanished when no tagged destinations remained");
         PortalHub.Installed=false;
+        Player.all.Clear();
         Console.WriteLine($"Passed {checks} production/performance assertions.");
     }
 }

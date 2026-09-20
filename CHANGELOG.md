@@ -1,3 +1,8 @@
+## 1.10.9 — Portal hall cargo and durability hotfix
+
+- Enforce vanilla teleportable rules on the untagged home portal so ores and other forbidden cargo cannot enter the hall.
+- Stop the sky hall from collapsing under WearNTear (no support/roof wear, block damage/destroy on hub pieces, keep the hall zone loaded).
+
 ## 1.10.8 — Portal hall hotfix
 
 - Shrink the untagged home-portal enter radius from 4 m to 1.5 m so nearby builds no longer count as walking in.

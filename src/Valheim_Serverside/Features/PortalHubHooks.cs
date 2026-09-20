@@ -49,5 +49,25 @@ namespace Valheim_Serverside.Features
 				PortalHub.HandleGatewayTag(__instance, text);
 			}
 		}
+
+		// Hall sits in the sky with no terrain support; block WearNTear so floors/portals
+		// do not slowly collapse while players pick a destination.
+		[HarmonyPatch(typeof(WearNTear), "ApplyDamage")]
+		public static class HubWearDamage
+		{
+			static bool Prefix(WearNTear __instance) => !PortalHub.IsHubWear(__instance);
+		}
+
+		[HarmonyPatch(typeof(WearNTear), "Destroy")]
+		public static class HubWearDestroy
+		{
+			static bool Prefix(WearNTear __instance) => !PortalHub.IsHubWear(__instance);
+		}
+
+		[HarmonyPatch(typeof(WearNTear), "Remove")]
+		public static class HubWearRemove
+		{
+			static bool Prefix(WearNTear __instance) => !PortalHub.IsHubWear(__instance);
+		}
 	}
 }

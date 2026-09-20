@@ -6,9 +6,14 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.8**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.9**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.9 — Portal hall cargo and durability hotfix
+
+- Untagged home portal now blocks non-teleportable items the same way vanilla portals do.
+- Destination hall no longer slowly destroys itself from unsupported sky pieces.
 
 ### 1.10.8 — Portal hall hotfix
 

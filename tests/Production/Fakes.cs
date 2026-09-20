@@ -29,6 +29,7 @@ namespace UnityEngine
         public static Vector3 operator*(Quaternion q, Vector3 v) => v;
     }
     public static class Time { public static double realtimeSinceStartupAsDouble; }
+    public class Sprite : Object {}
 }
 public struct Vector2s : IEquatable<Vector2s>
 {
@@ -53,6 +54,7 @@ public class ZDO
     public ZDOID m_uid; public bool Persistent=true, Distant, valid=true; public int prefab; public long owner, creator, playerId; public bool tamed; public int stack=1;
     public readonly Dictionary<int,long> extraLong=new();
     public readonly Dictionary<int,string> extraString=new();
+    public readonly Dictionary<int,float> extraFloat=new();
     public ZDOID connection;
     public UnityEngine.Quaternion rot;
     public bool GetBool(int key) => tamed;
@@ -70,6 +72,8 @@ public class ZDO
     }
     public void Set(int key, bool value) => extraLong[key] = value ? 1 : 0;
     public void Set(int key, int value) { stack = value; extraLong[key] = value; }
+    public void Set(int key, float value) => extraFloat[key] = value;
+    public float GetFloat(int key, float def=0) => extraFloat.TryGetValue(key, out var v) ? v : def;
     public int GetInt(int key, int def=0) => extraLong.TryGetValue(key, out var v) ? (int)v : def;
     public string GetString(int key, string def="") => extraString.TryGetValue(key, out var v) ? v : def;
     public void Set(int key, string value) => extraString[key] = value;
@@ -90,7 +94,14 @@ public class ZDO
     public void SetOwner(long n)=>owner=n;
 }
 public static class ZDOExtraData { public enum ConnectionType { Portal } }
-public class TeleportWorld : UnityEngine.Object { public ZNetView m_nview; }
+public class TeleportWorld : UnityEngine.Object { public ZNetView m_nview; public bool m_allowAllItems; }
+public class WearNTear : UnityEngine.Object
+{
+    public ZNetView m_nview;
+    public bool m_noSupportWear, m_noRoofWear;
+    public float m_health=100f, m_support=0f;
+    public float GetMaxSupport() => 1000f;
+}
 public class Game : UnityEngine.Object
 {
     public static Game instance=new();
@@ -119,7 +130,10 @@ public class Player : UnityEngine.Object
     public static readonly List<Player> all=new();
     public static List<Player> GetAllPlayers()=>all;
     public ZNetView m_nview;
+    public bool teleportable=true;
     public void TeleportTo(UnityEngine.Vector3 p, UnityEngine.Quaternion r, bool d) {}
+    public bool IsTeleportable(bool allowAllItems)=>allowAllItems || teleportable;
+    public void Message(MessageHud.MessageType t, string s, int n, UnityEngine.Sprite sp, bool b=false) {}
 }
 public class ZDOMan
 {
@@ -217,7 +231,7 @@ public class ZoneSystem : UnityEngine.Object
     public bool IsZoneLoaded(UnityEngine.Vector3 p)=>IsZoneLoaded(GetZone(p));
     public bool PokeLocalZone(Vector2s z) {if(m_zones.ContainsKey(z))return false;m_zones[z]=new();return true;}
 }
-public static class ZDOVars { public static int s_tamed=1; public static int s_creator=2; public static int s_playerID=3; public static int s_tag=4; public static int s_text=5; public static int s_tagHash=6; public static int s_picked=7; }
+public static class ZDOVars { public static int s_tamed=1; public static int s_creator=2; public static int s_playerID=3; public static int s_tag=4; public static int s_text=5; public static int s_tagHash=6; public static int s_picked=7; public static int s_health=8; public static int s_support=9; }
 public class Tameable : UnityEngine.Object { public bool m_startsTamed; }
 public class EggGrow : UnityEngine.Object { public bool m_tamed; }
 public class Growup : UnityEngine.Object {}
@@ -257,7 +271,7 @@ public class ZRoutedRpc
             if (a is string s) { messages.Add(s); break; }
     }
 }
-public class MessageHud {public enum MessageType{TopLeft}}
+public class MessageHud {public enum MessageType{TopLeft=1,Center=2}}
 namespace PluginConfiguration
 {
     public class Entry<T> {public T Value;public Entry(T v){Value=v;}}

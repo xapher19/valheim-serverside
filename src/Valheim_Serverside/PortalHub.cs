@@ -58,10 +58,21 @@ namespace Valheim_Serverside
 			if (now < nextScan) return;
 			nextScan = now + 2;
 			EnsureOrigin();
+			if (hubObjects.Count > 0)
+			{
+				EnsureHubZone();
+				MaintainHubPieces();
+			}
 			RebuildFilters();
 			RefreshPortalPrefabIndex();
 			ResolvePortalApis();
 			Reconcile();
+		}
+
+		internal static bool IsHubWear(WearNTear wear)
+		{
+			if (!wear || !wear.m_nview || !wear.m_nview.IsValid()) return false;
+			return IsHubObject(wear.m_nview.GetZDO());
 		}
 
 		private static void EnsureOrigin()
@@ -258,7 +269,9 @@ namespace Valheim_Serverside
 			var unpaired = UnpairedTags(portals.Select(TagOf));
 			if (gateways > 0)
 			{
-				if (FindHubLobby() == null) lastSignature = "";
+				EnsureHubZone();
+				if (FindHubLobby() == null && !HasValidHubPiece())
+					lastSignature = "";
 				string signature = "hall|" + gateways + "|" + string.Join("|", unpaired);
 				if (signature != lastSignature)
 				{
@@ -271,6 +284,13 @@ namespace Valheim_Serverside
 					NotifyAll(unpaired.Count == 0
 						? "Home portal is ready. Name an outpost portal to add a destination, then walk through the untagged home portal."
 						: "Home portal is ready. Walk through it to pick a destination.");
+					Connect();
+				}
+				else if (FindHubLobby() == null)
+				{
+					// Lobby missing but other hall pieces remain — rebuild without waiting for wear to finish.
+					ClearHub();
+					BuildHall(unpaired);
 					Connect();
 				}
 				WireHall();
@@ -361,6 +381,7 @@ namespace Valheim_Serverside
 			if (lobby == null || !lobby.IsValid()) return false;
 			ZNetPeer peer = PeerOfPlayer(player);
 			if (peer == null) return false;
+			if (!CanPortalTravel(player, portal.m_allowAllItems, peer)) return true;
 			lastEnter[peer.m_uid] = Time.realtimeSinceStartupAsDouble;
 			PublishToPeer(peer, lobby);
 			TeleportPeer(peer, lobby);
@@ -371,10 +392,42 @@ namespace Valheim_Serverside
 		private static ZNetPeer PeerOfPlayer(Player player)
 		{
 			if (player == null || !player.m_nview || !player.m_nview.IsValid() || ZNet.instance == null) return null;
-			ZDOID id = player.m_nview.GetZDO().m_uid;
+			ZDO zdo = player.m_nview.GetZDO();
+			if (zdo == null) return null;
+			ZDOID id = zdo.m_uid;
 			foreach (ZNetPeer peer in ZNet.instance.GetPeers())
 				if (peer != null && peer.m_characterID.Equals(id)) return peer;
 			return null;
+		}
+
+		private static Player PlayerOfPeer(ZNetPeer peer)
+		{
+			if (peer == null || peer.m_characterID.IsNone()) return null;
+			foreach (Player player in Player.GetAllPlayers())
+			{
+				if (!player || !player.m_nview || !player.m_nview.IsValid()) continue;
+				ZDO zdo = player.m_nview.GetZDO();
+				if (zdo != null && zdo.IsValid() && zdo.m_uid.Equals(peer.m_characterID)) return player;
+			}
+			return null;
+		}
+
+		// Match vanilla TeleportWorld: ores / non-teleportable cargo cannot use portals.
+		private static bool CanPortalTravel(Player player, bool allowAllItems, ZNetPeer peer)
+		{
+			if (player == null)
+			{
+				Notify(peer, "Cannot teleport right now.");
+				return false;
+			}
+			if (player.IsTeleportable(allowAllItems)) return true;
+			Notify(peer, "Cannot teleport with those items.");
+			try
+			{
+				player.Message(MessageHud.MessageType.Center, "$msg_noteleport", 0, null, false);
+			}
+			catch (Exception) { }
+			return false;
 		}
 
 		private static void RememberGateways(List<ZDO> gateways)
@@ -454,6 +507,12 @@ namespace Valheim_Serverside
 					if (!IsGateway(gateway)) continue;
 					Vector3 portal = gateway.GetPosition();
 					if (!NearPortal(refPos, portal, radiusSq) && !NearPortal(body, portal, radiusSq)) continue;
+					Player traveler = PlayerOfPeer(peer);
+					if (!CanPortalTravel(traveler, allowAllItems: false, peer))
+					{
+						lastEnter[peer.m_uid] = now;
+						break;
+					}
 					lastEnter[peer.m_uid] = now;
 					PublishToPeer(peer, lobby);
 					TeleportPeer(peer, lobby);
@@ -480,6 +539,8 @@ namespace Valheim_Serverside
 				Notify(peer, "No destination '" + requested.Trim() + "'. This portal is now tagged " + requested.Trim() + ".");
 				return;
 			}
+			Player traveler = PlayerOfPeer(peer);
+			if (!CanPortalTravel(traveler, portal.m_allowAllItems, peer)) return;
 			SetTag(zdo, "");
 			TeleportPeer(peer, dest);
 			Notify(peer, "Traveling to " + TagOf(dest) + ".");
@@ -596,6 +657,57 @@ namespace Valheim_Serverside
 			return null;
 		}
 
+		private static bool HasValidHubPiece()
+		{
+			for (int i = 0; i < hubObjects.Count; i++)
+			{
+				ZDO zdo = ZDOMan.instance.GetZDO(hubObjects[i]);
+				if (zdo != null && zdo.IsValid() && IsHubObject(zdo)) return true;
+			}
+			return false;
+		}
+
+		private static void MaintainHubPieces()
+		{
+			for (int i = hubObjects.Count - 1; i >= 0; i--)
+			{
+				ZDO zdo = ZDOMan.instance.GetZDO(hubObjects[i]);
+				if (zdo == null || !zdo.IsValid())
+				{
+					hubObjects.RemoveAt(i);
+					continue;
+				}
+				zdo.Persistent = true;
+				zdo.Distant = true;
+				HardenHubZdo(zdo);
+				if (ZNetScene.instance)
+				{
+					ZNetView view = ZNetScene.instance.FindInstance(zdo);
+					if (view) HardenHubWear(view.GetComponent<WearNTear>());
+				}
+			}
+		}
+
+		private static void HardenHubZdo(ZDO zdo)
+		{
+			if (zdo == null) return;
+			float health = zdo.GetFloat(ZDOVars.s_health, 0f);
+			if (health > 0f && health < 1e8f)
+				zdo.Set(ZDOVars.s_health, Math.Max(health, 1e8f));
+			else if (health <= 0f)
+				zdo.Set(ZDOVars.s_health, 1e8f);
+			zdo.Set(ZDOVars.s_support, 1e9f);
+		}
+
+		private static void HardenHubWear(WearNTear wear)
+		{
+			if (!wear) return;
+			wear.m_noSupportWear = true;
+			wear.m_noRoofWear = true;
+			wear.m_support = Math.Max(wear.m_support, wear.GetMaxSupport());
+			if (wear.m_health < 1e8f) wear.m_health = 1e8f;
+		}
+
 		private static void BuildHall(List<string> tags)
 		{
 			EnsureHubZone();
@@ -695,9 +807,12 @@ namespace Valheim_Serverside
 			zdo.Set(HubMarker, 1L);
 			zdo.Persistent = true;
 			zdo.Distant = true;
-			ZNetScene.instance.CreateObject(zdo);
+			HardenHubZdo(zdo);
+			GameObject go = ZNetScene.instance.CreateObject(zdo);
 			zdo.Persistent = true;
 			zdo.Distant = true;
+			HardenHubZdo(zdo);
+			if (go) HardenHubWear(go.GetComponent<WearNTear>());
 			ZDOMan.instance.SetDirtySector(zdo);
 			hubObjects.Add(zdo.m_uid);
 			return zdo;
