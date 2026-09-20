@@ -121,6 +121,7 @@ internal static class Program
                 CheckHook(game, plugin, "ZDOMan", "SendZDOs", "SendObservation", true, "Diagnostics");
                 CheckHook(game, plugin, "ZNetView", "HandleRoutedRPC", "InteractionObservation", true, "Diagnostics");
                 CheckFeature(plugin, "Production");
+                CheckFeature(plugin, "Farming");
                 CheckFeature(plugin, "MaxObjectsPerFrame");
                 CheckFeature(plugin, "SaveFeedback");
                 CheckFeature(plugin, "InteractionReliability");

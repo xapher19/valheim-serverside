@@ -122,9 +122,12 @@
     <Compile Include="VanillaDrift.cs" />
     <Compile Include="Configuration.cs" />
     <Compile Include="WorkBudgets.cs" />
+    <Compile Include="FarmingSupport.cs" />
     <Compile Include="ProductionAreas.cs" />
+    <Compile Include="PortalHub.cs" />
     <Compile Include="ServerFeedback.cs" />
     <Compile Include="Features\Production.cs" />
+    <Compile Include="Features\Farming.cs" />
     <Compile Include="Features\SaveFeedback.cs" />
     <Compile Include="Features\InteractionReliability.cs" />
     <Compile Include="SequentialInstructions.cs" />

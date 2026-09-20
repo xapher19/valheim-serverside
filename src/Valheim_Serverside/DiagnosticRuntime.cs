@@ -145,7 +145,7 @@ namespace Valheim_Serverside
                     return entry.Key.DeclaringType.Name + "." + entry.Key.Name + "=" + state;
                 }));
                 string save = ZNet.instance ? (ZNet.instance.IsSaving() ? "in progress" : ZNet.instance.SaveDoneTime > 0 ? "last completion observed " + (Time.realtimeSinceStartup - ZNet.instance.SaveDoneTime).ToString("0") + "s ago (write success not verified)" : "no completion observed") : "world unavailable";
-                string result = $"{ServersidePlugin.PluginName} {ServersidePlugin.PluginVersion}; simulation {(Installed ? "installed" : "inactive/rolled back")}; diagnostics {(Configuration.diagnosticsEnabled.Value ? "enabled" : "disabled")}; players {(ZNet.instance ? ZNet.instance.GetPeers().Count : 0)}; {FrameStatus()}; save {save}; commit {ServerFeedback.Status}; {ProductionAreas.Status}; {health}";
+                string result = $"{ServersidePlugin.PluginName} {ServersidePlugin.PluginVersion}; simulation {(Installed ? "installed" : "inactive/rolled back")}; diagnostics {(Configuration.diagnosticsEnabled.Value ? "enabled" : "disabled")}; players {(ZNet.instance ? ZNet.instance.GetPeers().Count : 0)}; {FrameStatus()}; save {save}; commit {ServerFeedback.Status}; {ProductionAreas.Status}; {PortalHub.Status}; {health}";
                 foreach (Peer peer in peers.Values) result += "\n" + PeerSummary(peer, Time.realtimeSinceStartupAsDouble);
                 return result;
             }

@@ -32,8 +32,9 @@ public struct ZDOID : IEquatable<ZDOID>
 public static class Hashes { public static int GetStableHashCode(this string s) { unchecked {int n=17;foreach(char c in s)n=n*31+c;return n;} } }
 public class ZDO
 {
-    public ZDOID m_uid; public bool Persistent=true, valid=true; public int prefab; public long owner; public bool tamed;
+    public ZDOID m_uid; public bool Persistent=true, valid=true; public int prefab; public long owner, creator; public bool tamed;
     public bool GetBool(int key) => tamed;
+    public long GetLong(int key, long def=0) => key == ZDOVars.s_creator ? creator : def;
     public UnityEngine.Vector3 pos;
     public bool IsValid()=>valid;
     public int GetPrefab()=>prefab;
@@ -83,17 +84,22 @@ public class ZoneSystem : UnityEngine.Object
     public bool IsZoneLoaded(UnityEngine.Vector3 p)=>IsZoneLoaded(GetZone(p));
     public bool PokeLocalZone(Vector2s z) {if(m_zones.ContainsKey(z))return false;m_zones[z]=new();return true;}
 }
-public static class ZDOVars { public static int s_tamed=1; }
+public static class ZDOVars { public static int s_tamed=1; public static int s_creator=2; }
 public class Tameable : UnityEngine.Object { public bool m_startsTamed; }
 public class EggGrow : UnityEngine.Object { public bool m_tamed; }
 public class Growup : UnityEngine.Object {}
-public class Plant : UnityEngine.Object {public UnityEngine.GameObject[] m_grownPrefabs=Array.Empty<UnityEngine.GameObject>();}
+public class Plant : UnityEngine.Object
+{
+    public UnityEngine.GameObject[] m_grownPrefabs=Array.Empty<UnityEngine.GameObject>();
+    public float m_growTime, m_growTimeMax; public bool m_destroyIfCantGrow=true;
+}
+public class Piece : UnityEngine.Object { public bool m_groundOnly=true, m_groundPiece=true; }
 public class Smelter : UnityEngine.Object {}
 public class Fermenter : UnityEngine.Object {}
 public class Beehive : UnityEngine.Object {}
 public class CookingStation : UnityEngine.Object {}
 public class SapCollector : UnityEngine.Object {}
-public class Pickable : UnityEngine.Object {}
+public class Pickable : UnityEngine.Object { public int m_respawnTimeMinutes; }
 public class RandomEvent {public float m_eventRange=100; public UnityEngine.Vector3 m_pos;}
 public class SpawnSystem {public class SpawnData {}}
 public class RandEventSystem {public RandomEvent m_activeEvent;}
@@ -110,9 +116,12 @@ namespace PluginConfiguration
     public class Entry<T> {public T Value;public Entry(T v){Value=v;}}
     public static class Configuration
     {
-        public static Entry<bool> productionEnabled=new(true),productionLivestock=new(true), advanceEmptyTime=new(true),saveAnnouncements=new(true);
-        public static Entry<int> productionScanBudget=new(2048);
-        public static Entry<string> productionExclude=new("");
+        public static Entry<bool> productionEnabled=new(true),productionLivestock=new(false),productionFlora=new(true), advanceEmptyTime=new(true),saveAnnouncements=new(true);
+        public static Entry<bool> farmingEnabled=new(false),farmingPlaceAnywhere=new(false),farmingRequireSunlight=new(true),farmingRequireGrowthSpace=new(true);
+        public static Entry<bool> portalHubEnabled=new(true), portalHubAutoName=new(false);
+        public static Entry<int> productionScanBudget=new(2048), farmingFloraRespawnMinutes=new(0);
+        public static Entry<float> farmingCropGrowTimeMin=new(0f), farmingCropGrowTimeMax=new(0f);
+        public static Entry<string> productionExclude=new(""), farmingExtraFlora=new(""), portalHubInclude=new("*"), portalHubExclude=new(""), portalHubAutoNameFormat=new("{0} {1:D2}");
     }
 }
 namespace Valheim_Serverside

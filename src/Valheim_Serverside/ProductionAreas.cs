@@ -15,6 +15,7 @@ namespace Valheim_Serverside
         private static ZNetScene scene;
         private static readonly HashSet<int> prefabs = new HashSet<int>();
         private static readonly HashSet<int> tamePrefabs = new HashSet<int>();
+        private static readonly HashSet<int> floraPrefabs = new HashSet<int>();
         private static readonly HashSet<ZDOID> anchors = new HashSet<ZDOID>();
         private static readonly List<ZDOID> removed = new List<ZDOID>();
         private static readonly HashSet<Vector2s> zones = new HashSet<Vector2s>();
@@ -32,11 +33,14 @@ namespace Valheim_Serverside
             if (manager != ZDOMan.instance || scene != ZNetScene.instance)
             {
                 manager = ZDOMan.instance; scene = ZNetScene.instance;
-                anchors.Clear(); zones.Clear(); orderedZones.Clear(); prefabs.Clear(); tamePrefabs.Clear();
+                anchors.Clear(); zones.Clear(); orderedZones.Clear(); prefabs.Clear(); tamePrefabs.Clear(); floraPrefabs.Clear();
                 sector = entry = nextZone = 0; scanning = true; reported = false; nextRefresh = nextScan = 0;
                 var excluded = new HashSet<string>(Configuration.productionExclude.Value.Split(','), StringComparer.Ordinal);
                 var trimmed = new HashSet<string>(StringComparer.Ordinal);
                 foreach (string name in excluded) trimmed.Add(name.Trim());
+                if (Configuration.productionFlora.Value)
+                    foreach (int hash in FarmingSupport.ParsePrefabHashes(Configuration.farmingExtraFlora.Value, FarmingSupport.DefaultFloraPrefabs))
+                        floraPrefabs.Add(hash);
                 foreach (var pair in scene.m_namedPrefabs)
                 {
                     GameObject p = pair.Value;
@@ -56,7 +60,8 @@ namespace Valheim_Serverside
                         foreach (GameObject grown in plant.m_grownPrefabs)
                             if (grown && grown.GetComponent<Pickable>() && !trimmed.Contains(grown.name)) prefabs.Add(grown.name.GetStableHashCode());
                 }
-                ServersidePlugin.logger.LogInfo($"Production: indexing {prefabs.Count + tamePrefabs.Count} prefab types; world clock while empty: {Configuration.advanceEmptyTime.Value}. No offline catch-up.");
+                foreach (string name in trimmed) floraPrefabs.Remove(name.GetStableHashCode());
+                ServersidePlugin.logger.LogInfo($"Production: indexing {prefabs.Count + tamePrefabs.Count} station/crop/livestock types and {floraPrefabs.Count} flora types; anchors require a player creator. World clock while empty: {Configuration.advanceEmptyTime.Value}. No offline catch-up.");
             }
             double now = Time.realtimeSinceStartupAsDouble;
             if (!scanning && now >= nextScan) { scanning = true; sector = entry = 0; }
@@ -89,8 +94,16 @@ namespace Valheim_Serverside
             if (Enabled && manager == ZDOMan.instance && zdo != null && zdo.IsValid() && IsAnchor(zdo)) anchors.Add(zdo.m_uid);
         }
 
-        private static bool IsAnchor(ZDO zdo) => prefabs.Contains(zdo.GetPrefab())
-            || (tamePrefabs.Contains(zdo.GetPrefab()) && zdo.GetBool(ZDOVars.s_tamed));
+        private static bool IsAnchor(ZDO zdo)
+        {
+            // Only player-made pieces (Piece.SetCreator). Wild beehives, sap collectors,
+            // bushes and other world props must not pin zones or load nearby dungeons.
+            if (!FarmingSupport.HasCreator(zdo)) return false;
+            int prefab = zdo.GetPrefab();
+            if (prefabs.Contains(prefab)) return true;
+            if (tamePrefabs.Contains(prefab) && zdo.GetBool(ZDOVars.s_tamed)) return true;
+            return floraPrefabs.Contains(prefab);
+        }
 
         private static void RefreshZones()
         {

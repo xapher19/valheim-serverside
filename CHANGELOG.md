@@ -1,3 +1,24 @@
+## 1.10.1 — Server-side farming, tighter production, portal hub
+
+- Keep player-planted berry bushes, mushrooms and flowers loaded under Production (`[Production] Flora`). Wild flora is ignored. Compatible with PlantEverything-planted world objects without installing PlantEverything on the dedicated server.
+- Require a piece creator for all production anchors so wild beehives/sap collectors and other world props no longer pin zones. Default `[Production] Livestock` to false.
+- Add `[PortalHub]` (on by default): generate a sky hub that pairs unpaired portal tags. Remove ServersideQoL AutoPortalHub when using this. Independently implemented; ServersideQoL source is not bundled.
+- Add optional `[Farming]` retunes (off by default): flora respawn minutes, crop grow times, and PlaceAnywhere / sunlight / growth-space relaxation for server simulation only.
+- Do not add cultivator recipes, client UI or ServerSync. Clients still need PlantEverything (or similar) to plant new flora.
+
+## 1.10.0 — Persistent production and bounded server work
+
+- Keep generated areas around smelters (including kiln/windmill/spinning-wheel variants), fermenters, cooking stations, planted crops, beehives, sap collectors, tamed livestock and hatchable tame-animal eggs loaded on the server. Mature crop pickables remain anchors; planted trees stop being anchors when grown.
+- Rebuild the production index incrementally from saved world objects after restart, discover newly placed stations, and release areas after their last anchor is removed. No extra world-save format or client mod.
+- Require a connected player's character near the event for raid starts and raid spawns. Production anchors never count as players. Raid guards and production hooks install atomically; failed guards disable production, while Core retains its own atomic rollback.
+- Optionally advance world time with nobody connected (enabled by default). This advances days/weather as well as production. No catch-up while the server is stopped.
+- Adapt object-creation allowance to measured costs and frame pressure, enforce its cap for large backlogs, and avoid duplicate sector searches for players in the same zone.
+- Budget round-robin world sends across frames, keeping bounded unserved work for the next frame instead of a catch-up burst. Existing vanilla packets and transport limits remain unchanged.
+- Prioritise successful dropped-item ownership grants in the next world update, as vanilla already does for chests. No automatic repeated pickup or inventory actions.
+- Lower the empty-server frame cap to 30 by default and restore the active target on connection; physics and production continue.
+- Add save-start/result and console-shutdown announcements. Status distinguishes the game's save commit result from mere save-thread completion; this is not independent disk verification.
+- Document Production and related Performance/Server settings in the README, with regression and real-game hook checks for the new features.
+
 ## 1.9.4 — Northwatch
 
 - Rename the plugin, DLL, assembly metadata, packaging and status display to Northwatch Dedicated Simulation.

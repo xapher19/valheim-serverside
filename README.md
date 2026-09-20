@@ -6,10 +6,17 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.0**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.1**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
 
+### 1.10.1 — Server-side farming, tighter production, portal hub
+
+- Keep **player-planted** berry bushes, mushrooms and flowers loaded under Production (`[Production] Flora`, on by default). Wild flora is ignored so meadows are not pinned. Works with objects planted by [PlantEverything](https://thunderstore.io/c/valheim/p/Advize/PlantEverything/) clients without installing PlantEverything on the dedicated server.
+- **Production anchors now require a piece creator** (player-built). Wild beehives, sap collectors and other world props no longer pin zones or load nearby dungeons. `[Production] Livestock` defaults to off.
+- Built-in **portal hub** (`[PortalHub]`, on by default): unpaired portal tags get a matching hub portal in a sky platform. Remove ServersideQoL AutoPortalHub (and related portal packages) so they do not fight. Independently implemented from public behaviour docs; that mod’s source is not bundled.
+- Optional `[Farming]` retunes (off by default): flora respawn minutes, crop grow times, and PlaceAnywhere / sunlight / growth-space relaxation for server-side plant simulation.
+- Does **not** add cultivator recipes, meshes, hover UI or ServerSync. Vanilla clients still need PlantEverything (or similar) on the client to plant new flora.
 ### 1.10.0 — Persistent production and bounded server work
 
 - Automatically keep generated areas around smelters (including kiln/windmill/spinning-wheel variants), fermenters, cooking stations, planted crops, beehives, sap collectors, tamed livestock and hatchable tame-animal eggs loaded on the server. Mature crop pickables remain anchors; planted trees stop being anchors when grown.
@@ -48,8 +55,7 @@ Current custom build: **Northwatch 1.10.0**, compiled and hook-tested against Va
 - Isolated optional Performance hooks, added startup patch-health reporting and verified/fell back to the configured FPS target.
 - Preserved Core’s atomic rollback and vanilla-client/PS5 compatibility.
 
-See [CHANGELOG.md](CHANGELOG.md) for the inherited release history. Automated checks
-verify logic and installation; live portal cleanup still needs an observer test.
+See [CHANGELOG.md](CHANGELOG.md) for the full release history, including 1.10.0 and earlier upstream notes. Automated checks verify logic and installation; live unattended-production, raid and portal cleanup still need observer tests.
 
 ## Why, compared to vanilla
 
@@ -89,6 +95,7 @@ Compared to Serverside Simulations 1.1.9 (details in the [changelog](CHANGELOG.m
 - **Fix: player changes that the save skipped.** Valheim 1.0 rewrites only the world chunks it marked as changed, and a change received from a player marks nothing, so what a player just built or moved could be missing after a restart.
 - **Admin commands on the server console:** `give <item> <amount> <player>`, `players`, `save`, `stop`, typed into the panel the server runs in (AMP). Valheim 1.0 does not let a player on a dedicated server use `spawn` from the game console, admin or not. Optionally the same as chat commands for admins.
 - **Smoother server frames:** world updates reach every player at a steady interval however many are online, one slow frame no longer makes the next one slow through physics catch-up, and new zones are generated one per tick instead of one per exploring player. A periodic log shows frame times and what they are spent on.
+- **Persistent production (1.10.0+):** keep smelters, fermenters, cooking, crops, beehives, sap collectors, tamed livestock and player-planted flora active without a nearby player; raid starts/spawns still need a real player nearby. Optional empty-server world-time advance, adaptive object creation, budgeted sends, prioritised pickup grants, idle FPS cap, save announcements, and optional `[Farming]` retunes. Clients still need PlantEverything (or similar) to plant new flora recipes.
 - **`save` and `stop` console commands** for server panels that write to standard input.
 - **Safety:** a startup check warns when a vanilla method the mod replaces has changed in a game update; if the core patches cannot be applied, the mod removes itself and the server runs vanilla.
 
@@ -112,15 +119,36 @@ Clients need nothing.
 |---|---|---|
 | `[General] Enabled` | true | Turn the mod off without removing it. |
 | `[MaxObjectsPerFrame] MaxObjects` | 100 | Objects the server creates per frame. Higher loads areas faster at more CPU. |
+| `[MaxObjectsPerFrame] Adaptive` | true | Adjust creation allowance to measured cost and frame pressure, still bounded by MaxObjects. |
+| `[MaxObjectsPerFrame] BudgetMs` | 3 | Soft object-creation time budget; a single expensive object cannot be interrupted. |
 | `[Networking] QueueSizeKB` | 48 | Data queued per player before the server holds world updates for that tick (Valheim: 10). 48 KB at 20 ticks/s is about 960 KB/s, just under the send rate cap; above 80 Steam starts failing. |
 | `[Networking] SteamSendRateMinKB` / `MaxKB` | 256 / 1024 | Steam send rate per player, KB/s (Valheim: 150). Keep min × players below the server's upload. |
 | `[Networking] StatsIntervalMinutes` | 5 | How often to log, per player, how often the send queue was full. Near 0% means the limits are not what holds you back. 0 disables. |
 | `[Server] UnityJobWorkers` | 8 | Upper limit on Unity job worker threads (Unity: one per CPU core). Only ever lowers the count; 0 leaves Unity's default. |
 | `[Server] ConsoleCommands` | true | Read commands from standard input: `save`, `stop` (saves first), `players`, `give <item> <amount> <player>` (drops the items in front of that player; the name may be a unique beginning). In AMP this is its console, see the AMP chapter. |
+| `[Server] SaveAnnouncements` | true | Show save start/result and console-shutdown announcements to vanilla clients. |
+| `[Production] Enabled` | true | Keep **player-built** stations/crops active (piece creator required); raid guards included. Restart required. |
+| `[Production] Livestock` | false | Tamed animals, their young and hatchable eggs with a creator also anchor areas. Restart required. |
+| `[Production] Flora` | true | Player-planted berry/mushroom/flower pickables (creator set) also anchor areas. Wild flora ignored. Restart required. |
+| `[Production] AdvanceTimeWhenEmpty` | true | Advance world time (days/weather and production) with no players. No offline catch-up. |
+| `[Production] ExcludedPrefabs` | empty | Comma-separated exact prefab names that must not anchor production. Restart required. |
+| `[Production] ScanEntriesPerFrame` | 2048 | Maximum scan steps per frame when finding existing production after restart. |
+| `[PortalHub] Enabled` | true | Generate a sky portal hub for unpaired portal tags. Remove ServersideQoL AutoPortalHub if present. |
+| `[PortalHub] Include` / `Exclude` | `*` / empty | Wildcard tag filters for hub pairing. |
+| `[PortalHub] AutoNameNewPortals` | false | Auto-name empty portal tags before pairing. |
+| `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | Biome name + unique integer. |
+| `[Farming] Enabled` | false | Optional server-side grow/respawn/restriction retunes. No cultivator recipes. Restart required. |
+| `[Farming] PlaceAnywhere` | false | Relax plant roof, growth-space and ground checks while Farming is enabled. |
+| `[Farming] RequireSunlight` / `RequireGrowthSpace` | true / true | When false (and Farming enabled), skip the matching plant check. |
+| `[Farming] CropGrowTimeMin` / `Max` | 0 / 0 | Override plant grow times when Farming is enabled; 0 leaves vanilla/mod values. |
+| `[Farming] FloraRespawnMinutes` | 0 | Override pickable respawn for configured flora when Farming is enabled; 0 leaves vanilla/mod values. |
+| `[Farming] ExtraFloraPrefabs` | empty | Extra exact prefab names for flora anchors and respawn overrides. Restart required. |
 | `[Performance] SendIntervalMs` | 100 | How often each player gets world updates. Valheim serves one player per frame, so with N players each waits N+1 frames (330 ms at 15 FPS with 4 players). Each send costs server CPU; see the performance log. 0 keeps Valheim's behaviour. |
+| `[Performance] SendBudgetMs` | 3 | Soft scheduled-send budget per frame; rotate fairly and retain bounded debt. 0 disables. |
 | `[Performance] MaxCatchUpMs` | 100 | Longest frame counted in full. After a slow frame Unity reruns physics and every creature's fixed update for each 20 ms missed (Valheim allows 200 ms, 10 times); 100 caps it at 5. Game time runs slightly slow during such frames. 0 keeps the game's setting. |
 | `[Performance] MaxZonesPerTick` | 1 | New zones generated per zone tick (10 per second), players taking turns. 0 = one per player per tick, as before. |
 | `[Performance] ServerTargetFps` | 60 | Frame rate the server aims for (the game sets 30). With time to spare a frame no longer waits 33 ms, so reactions to players halve; under load it changes nothing. 0 keeps 30. |
+| `[Performance] IdleTargetFps` | 30 | Empty-server frame cap (never above ServerTargetFps); 0 disables. Physics and production continue. |
 | `[Fixes] SaveClientChanges` | true | Count a change that arrives from a player as a change to its world chunk, so the next save writes it. Valheim 1.0 rewrites only changed chunks and skips those. |
 | `[AdminChat] Enabled` | false | Admins (adminlist.txt) can shout `/give <item> [amount]`, `/save` and `/help`; replies appear in their console (F5). The shout is visible to players nearby; the server console does the same without it. |
 | `[AdminChat] Prefix` / `MaxGiveAmount` | `/` / 1000 | Command prefix; most items one `/give` drops. |
@@ -279,21 +307,34 @@ boat physics or garbage collection. No client installation is required.
 
 ## Persistent production (1.10.0)
 
-Enabled by default. Northwatch recognises registered prefabs by production components, including modded prefabs using the same components. It keeps the anchor's 64-metre zone and one surrounding ring of already-generated zones loaded for terrain, roofs, crop spacing and output physics. Overlapping areas share zones. Existing farms and stations are discovered without a visit after restart; the initial scan and zone loading are gradual, not instantaneous. New crops/stations are normally recognised within a second; a periodic rescan reconciles the world index.
+Enabled by default. Northwatch recognises registered prefabs by production components, including modded prefabs using the same components. **Every production anchor must have a piece creator** (player-built); wild beehives, sap collectors and similar world props are ignored so they do not pin zones or load nearby dungeons. It keeps the anchor's 64-metre zone and one surrounding ring of already-generated zones loaded for terrain, roofs, crop spacing and output physics. Overlapping areas share zones. Existing farms and stations are discovered without a visit after restart; the initial scan and zone loading are gradual, not instantaneous. New crops/stations are normally recognised within a second; a periodic rescan reconciles the world index.
 
 There is no arbitrary area-count limit. Many scattered sites therefore **increase CPU and RAM usage**. The `status` command reports anchor/zone counts. Removing the last station/crop releases its area through the normal unloading path, unless players or another production area still need it. Exclude prefab types in configuration if necessary.
 
-Production keeps vanilla fuel, ingredient, roof, biome, growth, output-capacity and collection rules. It does not automatically refuel machines, harvest crops or tap fermenters. Cooking can burn food, fires use fuel, and dropped outputs retain vanilla despawn rules. Mature trees do not independently anchor an area. Already-tamed livestock, their young and hatchable tame-animal eggs anchor areas by default; wild animals do not. Animal feeding, breeding population caps and egg warmth/roof rules remain unchanged. Moving tamed animals move their supporting area. Ordinary creatures and structures in those zones also remain loaded: **raid proximity guards are not general offline damage immunity**, and existing enemies are not deleted. There are no synthetic players, so nearby-player spawning checks retain their meaning.
+Production keeps vanilla fuel, ingredient, roof, biome, growth, output-capacity and collection rules. It does not automatically refuel machines, harvest crops or tap fermenters. Cooking can burn food, fires use fuel, and dropped outputs retain vanilla despawn rules. Mature trees do not independently anchor an area. Already-tamed livestock, their young and hatchable tame-animal eggs anchor areas by default; wild animals do not. **Player-planted** berry bushes, mushrooms and flowers (creator set on the world object) also anchor when `[Production] Flora` is enabled; wild flora does not. Animal feeding, breeding population caps and egg warmth/roof rules remain unchanged. Moving tamed animals move their supporting area. Ordinary creatures and structures in those zones also remain loaded: **raid proximity guards are not general offline damage immunity**, and existing enemies are not deleted. There are no synthetic players, so nearby-player spawning checks retain their meaning.
+
+Optional `[Farming]` (off by default) can retune server-side plant grow times, flora respawn minutes, and plant roof/growth-space checks. It does not add cultivator recipes or client UI — install [PlantEverything](https://thunderstore.io/c/valheim/p/Advize/PlantEverything/) on clients (and on the server only if you also want PE’s own overrides/ServerSync). Northwatch’s farming helpers are independently implemented and do not vendor Advize’s GPL-3.0 source.
 
 A raid can start/spawn only with a connected character in its configured event range (typically the vanilla event radius), in the same outdoor height band. Leaving stops further raid spawning; the existing event's lifecycle and already-spawned creatures otherwise follow vanilla behaviour. Manually requested random raids are subject to the same start guard. Forced-event spawns also require real nearby players.
 
 | Setting | Default | Effect |
 |---|---|---|
-| `[Production] Enabled` | true | Persistent production plus atomic raid guards; restart required. |
-| `[Production] Livestock` | true | Tamed animals, their young and tame-animal eggs also anchor areas; restart required. |
+| `[Production] Enabled` | true | Keep zones around **player-built** stations/crops (piece creator required); restart required. |
+| `[Production] Livestock` | false | Tamed animals/eggs with a creator also anchor areas; restart required. |
+| `[Production] Flora` | true | Player-planted berry/mushroom/flower pickables also anchor areas; wild flora ignored; restart required. |
 | `[Production] AdvanceTimeWhenEmpty` | true | World time, including day/weather and production timers, advances with no players. No offline catch-up. |
 | `[Production] ExcludedPrefabs` | empty | Comma-separated exact prefab names that must not anchor production; restart required. |
 | `[Production] ScanEntriesPerFrame` | 2048 | Maximum scan steps per frame, also limited to roughly 2 ms. |
+| `[PortalHub] Enabled` | true | Sky hub pairing for unpaired portal tags. Remove ServersideQoL AutoPortalHub first. |
+| `[PortalHub] Include` / `Exclude` | `*` / empty | Wildcard filters on portal tags. |
+| `[PortalHub] AutoNameNewPortals` | false | Name empty tags using AutoNameFormat before pairing. |
+| `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | `{0}`=biome name, `{1}`=unique integer. |
+| `[Farming] Enabled` | false | Optional server grow/respawn/restriction retunes; no cultivator recipes; restart required. |
+| `[Farming] PlaceAnywhere` | false | Relax plant roof, growth-space and ground checks while Farming is enabled. |
+| `[Farming] RequireSunlight` / `RequireGrowthSpace` | true / true | When false (and Farming enabled), skip the matching plant check. |
+| `[Farming] CropGrowTimeMin` / `Max` | 0 / 0 | Override plant grow times when Farming is enabled; 0 leaves vanilla/mod values. |
+| `[Farming] FloraRespawnMinutes` | 0 | Override pickable respawn for configured flora when Farming is enabled; 0 leaves vanilla/mod values. |
+| `[Farming] ExtraFloraPrefabs` | empty | Extra exact prefab names for flora anchors and respawn overrides; restart required. |
 | `[MaxObjectsPerFrame] Adaptive` | true | Adjust creation allowance to measured cost and frame pressure. |
 | `[MaxObjectsPerFrame] BudgetMs` | 3 | Soft creation budget; individual operations cannot be interrupted. `MaxObjects` remains the ceiling. |
 | `[Performance] SendBudgetMs` | 3 | Soft scheduled-send budget per frame; 0 disables the budget. |

@@ -92,6 +92,7 @@ namespace PluginConfiguration
         public static Setting<float> performanceStatsMinutes = new(5), sendBudgetMs = new(3);
         public static Setting<int> idleFps = new(0);
         public static Setting<bool> modEnabled = new(true), consoleCommandsEnabled = new(false), adminChatEnabled = new(false);
+        public static Setting<bool> portalHubEnabled = new(true);
         public static void Load(object c) { }
     }
 }
@@ -105,6 +106,7 @@ namespace Requirements
 namespace Valheim_Serverside
 {
     internal static class ProductionAreas { internal static bool Installed; internal static void Tick() {} }
+    internal static class PortalHub { internal static bool Installed; internal static void Tick() {} internal static string Status => "portal hub inactive"; }
     internal static class ServerFeedback { internal static bool Installed; internal static void Tick() {} }
     public static class ServerConsole { public static void Start() { } public static void ProcessPending() { } }
     internal static class DiagnosticRuntime { internal static bool Installed; internal static void Initialize() { } internal static void HookState(Type t, string s) {} internal static void Rollback() {} internal static void Tick() { } }
@@ -127,6 +129,7 @@ namespace Valheim_Serverside.Features
     public class MaxObjectsPerFrame : FeaturesLib.IFeature { public bool FeatureEnabled() => false; }
     public class Networking : MaxObjectsPerFrame { }
     public class Production : FeaturesLib.IFeature { public bool FeatureEnabled() => true; public class Anchor { static void Prefix() {} } public class RaidGuard { static void Prefix() {} } }
+    public class Farming : MaxObjectsPerFrame { }
     public class SaveFeedback : MaxObjectsPerFrame { }
     public class InteractionReliability : MaxObjectsPerFrame { }
     public class AdminChat : MaxObjectsPerFrame { public static void Tick() { } }
