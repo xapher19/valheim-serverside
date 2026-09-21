@@ -68,7 +68,7 @@ namespace Valheim_Serverside.Features
 			static void Postfix(Container __instance)
 			{
 				if (!ContainerExpand.Enabled) return;
-				ContainerExpand.TryExpand(__instance, recreate: true);
+				ContainerExpand.TryExpand(__instance);
 			}
 		}
 	}

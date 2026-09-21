@@ -6,9 +6,12 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.11.4**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.11.5**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.11.5 — CRITICAL chest wipe fix
+`ContainerExpand` was permanently deleting player chests via `ZNetScene.Destroy`. Fixed (in-place only); `ChestExtraRows` default 0. Restore a pre-1.11.1 world backup.
 
 ### 1.11.4 — Smooth falling trees
 Full-rate sync while TreeLog / debris tumble; magnet waits for PhysX sleep before pulling wood.

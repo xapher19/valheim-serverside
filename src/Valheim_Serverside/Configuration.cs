@@ -255,8 +255,8 @@ namespace PluginConfiguration
 				new ConfigDescription("Per-player carry capacity multiplier via GlobalKeys.CarryWeightRate (1 = vanilla). Spoofed only to connected clients. Try 1.5–2 for backpack-like capacity without ExtraSlots.", new AcceptableValueRange<float>(0.5f, 5f)));
 			qolNoDurabilityNearStation = config.Bind("QoL", "NoDurabilityNearStation", true,
 				"While standing near a crafting station, set DurabilityRate to 0 for that player (gear does not wear — feels like auto-repair).");
-			qolChestExtraRows = config.Bind("QoL", "ChestExtraRows", 1,
-				new ConfigDescription("Extra inventory rows added to every player-built chest/container (not dungeon chests). Applied via HasFields so vanilla clients see the taller UI.", new AcceptableValueRange<int>(0, 6)));
+			qolChestExtraRows = config.Bind("QoL", "ChestExtraRows", 0,
+				new ConfigDescription("Extra inventory rows on player-built chests via HasFields (in-place only). Default 0 — 1.11.1–1.11.4 destroyed chests via ZNetScene.Destroy; leave 0 until you restore a backup, then optionally set 1.", new AcceptableValueRange<int>(0, 6)));
 			qolBackpack = config.Bind("QoL", "Backpack", true,
 				"Emote-opens a persistent private-chest backpack (vanilla OpenResponse). Disable ServersideQoL.Backpack if both are installed.");
 			qolBackpackEmote = config.Bind("QoL", "BackpackEmote", "Wave",

@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
-using HarmonyLib;
 using PluginConfiguration;
 using UnityEngine;
 
@@ -10,13 +8,15 @@ namespace Valheim_Serverside
 	/// <summary>
 	/// Add ExtraRows to player-built container heights via ZNetView HasFields so vanilla
 	/// clients recreate with a taller inventory. Dungeon/world chests (no creator) are skipped.
+	///
+	/// NEVER call ZNetScene.Destroy here — that DestroyZDO's owned objects and permanently
+	/// deletes player chests (1.11.1–1.11.4 bug).
 	/// </summary>
 	internal static class ContainerExpand
 	{
 		internal const string MarkerKey = "nw_extra_rows";
 		private static readonly int MarkerHash = MarkerKey.GetStableHashCode();
 		private static readonly HashSet<ZDOID> checkedIds = new HashSet<ZDOID>();
-		private static MethodInfo saveMethod;
 		private static double nextScan;
 		private static int expanded;
 		private static bool scanExhausted;
@@ -32,9 +32,8 @@ namespace Valheim_Serverside
 			double now = Time.realtimeSinceStartupAsDouble;
 			if (now < nextScan) return;
 			nextScan = now + 15;
-			// One slow pass for chests that loaded before the Awake postfix; then stop.
 			Container[] all = UnityEngine.Object.FindObjectsByType<Container>(FindObjectsSortMode.None);
-			int budget = 4;
+			int budget = 8;
 			int pending = 0;
 			for (int i = 0; i < all.Length; i++)
 			{
@@ -45,13 +44,13 @@ namespace Valheim_Serverside
 				pending++;
 				if (budget <= 0) continue;
 				checkedIds.Add(id);
-				if (TryExpand(c, recreate: true)) budget--;
-				else budget--; // still count toward budget so we don't stall a frame
+				TryExpand(c);
+				budget--;
 			}
 			if (pending == 0) scanExhausted = true;
 		}
 
-		internal static bool TryExpand(Container container, bool recreate)
+		internal static bool TryExpand(Container container)
 		{
 			if (!Enabled || !container) return false;
 			ZNetView view = container.m_nview;
@@ -81,55 +80,21 @@ namespace Valheim_Serverside
 			if (applied == extra && container.m_width == width && container.m_height == height)
 				return false;
 
-			// Persist so clients LoadFields() get the taller size on Awake.
+			// Persist so clients LoadFields() get the taller size on Awake — in place only.
 			zdo.Set("HasFields", true);
 			zdo.Set("HasFieldsContainer", true);
 			zdo.Set("Container.m_width", width);
 			zdo.Set("Container.m_height", height);
 			zdo.Set(MarkerHash, extra);
 
-			if (container.m_width == width && container.m_height == height)
-			{
-				expanded++;
-				return false;
-			}
-
-			if (!recreate) return false;
-
-			// Refuse to shrink over a full chest — only grow.
-			Inventory inv = container.GetInventory();
-			if (inv != null && inv.NrOfItems() > width * height) return false;
-
-			try
-			{
-				if (view.IsOwner())
-				{
-					if (saveMethod == null) saveMethod = AccessTools.Method(typeof(Container), "Save");
-					saveMethod?.Invoke(container, null);
-				}
-				else
-				{
-					zdo.SetOwner(ZDOMan.GetSessionID());
-					if (saveMethod == null) saveMethod = AccessTools.Method(typeof(Container), "Save");
-					saveMethod?.Invoke(container, null);
-				}
-			}
-			catch (Exception) { }
-
 			container.m_width = width;
 			container.m_height = height;
-			try
-			{
-				ZNetScene.instance.Destroy(view.gameObject);
-				ZNetScene.instance.CreateObject(zdo);
-				expanded++;
-				return true;
-			}
-			catch (Exception e)
-			{
-				ServersidePlugin.logger?.LogWarning("ContainerExpand recreate failed: " + e.GetType().Name);
-				return false;
-			}
+			Inventory inv = container.GetInventory();
+			if (inv != null && inv.GetHeight() < height)
+				inv.SetHeight(height);
+
+			expanded++;
+			return true;
 		}
 	}
 }

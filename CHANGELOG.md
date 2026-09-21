@@ -1,3 +1,9 @@
+## 1.11.5 — CRITICAL: stop deleting player chests
+
+- **Bug:** `ContainerExpand` called `ZNetScene.Destroy` after claiming ownership. That permanently `DestroyZDO`s player chests (loot gone from the world).
+- **Fix:** expand in place via HasFields + `Inventory.SetHeight` only. Never destroy. `ChestExtraRows` default **0**.
+- **Recovery:** stop the server before another autosave, restore a world backup from *before* 1.11.1 chest-expand ran, then deploy 1.11.5. Chests outside loaded zones may still exist.
+
 ## 1.11.4 — Smooth falling trees
 
 - MotionCull no longer rate-limits actively tumbling rigidbodies (`TreeLog` fall, timber, ore chunks) — they sync at full rate instead of ~8 Hz stutter.
