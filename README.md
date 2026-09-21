@@ -6,9 +6,17 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.11**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.13**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.13 — Sync/CPU reductions (server-only)
+
+- Dirty-set sync, ZDO relay throttle, Top-K sort, skip heightmap render mesh, defer asset unload, and server-side motion cull. Vanilla clients.
+
+### 1.10.12 — Long-haul networking (server-only)
+
+- Per-peer BDP send windows, raised connection timeouts, ghost-owner reclaim to the server, station RPC re-addressing, and filtered Everybody relays. Vanilla clients. Does not hand simulation to players.
 
 ### 1.10.11 — Optional empty public-server password
 
@@ -142,7 +150,7 @@ Compared to Serverside Simulations 1.1.9 (details in the [changelog](CHANGELOG.m
 - **Valheim 1.0 support**, and a review of every patched method against the 1.0 code.
 - **Fixes:** location prefabs were never released (a memory leak); zones could be generated before their locations; no objects were created with a non-classic `-simulationdistance`; 1.0 errors on the server with ship sails, the Frost Foundry (which duplicated items) and leviathans; the far ring of unexplored land was not pre-generated as in vanilla, so distant trees, cliffs and the Mistlands mist appeared late.
 - **Objects nearest to a player are created first**, e.g. after a portal.
-- **Server-side networking limits** from BetterNetworking, with a per-player log of how often they are reached.
+- **Server-side networking** (BetterNetworking-style limits plus BDP windows, timeouts, ghost reclaim, station routing, relay filtering), with a per-player log of queue pressure.
 - **Cap on Unity job worker threads**, which otherwise idle at CPU cost on many-core hosts.
 - **Fix: player changes that the save skipped.** Valheim 1.0 rewrites only the world chunks it marked as changed, and a change received from a player marks nothing, so what a player just built or moved could be missing after a restart.
 - **Admin commands on the server console:** `give <item> <amount> <player>`, `players`, `save`, `stop`, typed into the panel the server runs in (AMP). Valheim 1.0 does not let a player on a dedicated server use `spawn` from the game console, admin or not. Optionally the same as chat commands for admins.
@@ -161,7 +169,7 @@ Clients need nothing.
 
 **Upgrading from Serverside Simulations:** delete `Serverside_Simulations.dll`. Both use the same plugin GUID, so only one can load; the config file `MVP.Valheim_Serverside_Simulations.cfg` carries over.
 
-**Do not also run BetterNetworking on the server:** its server-side limits are built in.
+**Do not also run BetterNetworking, NetworkPerformanceSystem, ValheimTune, SkadiNet, or LeanNet on the server:** they overlap the same send/sync paths, and NPS/SkadiNet ownership fights Northwatch's serverside simulation.
 
 ## Configuration
 
@@ -173,9 +181,16 @@ Clients need nothing.
 | `[MaxObjectsPerFrame] MaxObjects` | 100 | Objects the server creates per frame. Higher loads areas faster at more CPU. |
 | `[MaxObjectsPerFrame] Adaptive` | true | Adjust creation allowance to measured cost and frame pressure, still bounded by MaxObjects. |
 | `[MaxObjectsPerFrame] BudgetMs` | 3 | Soft object-creation time budget; a single expensive object cannot be interrupted. |
-| `[Networking] QueueSizeKB` | 48 | Data queued per player before the server holds world updates for that tick (Valheim: 10). 48 KB at 20 ticks/s is about 960 KB/s, just under the send rate cap; above 80 Steam starts failing. |
+| `[Networking] QueueSizeKB` | 48 | Max data queued per player before the server holds world updates for that tick (Valheim: 10). Also the BDP window cap. Above 80 Steam starts failing. |
+| `[Networking] EnableBdpWindow` | true | Size each player's send window from Steam RTT (rate × RTT × factor), clamped 10 KB–QueueSizeKB. PlayFab keeps QueueSizeKB. |
+| `[Networking] BdpTargetRateKBps` / `BdpFactor` | 150 / 1.25 | Target throughput and headroom for BDP window sizing. |
+| `[Networking] EnableTimeoutTuning` | true | Raise ZRpc and Steam quiet-connection timeouts (see Connection/LoadingTimeoutSeconds). |
+| `[Networking] ConnectionTimeoutSeconds` / `LoadingTimeoutSeconds` | 90 / 120 | Quiet-connection timeouts while playing / loading (vanilla 30 / 90). |
+| `[Networking] EvictGhostOwners` / `GhostEvictSeconds` | true / 10 | Reclaim quiet peers' owned ZDOs to the server after this silence; slot kept until full timeout. |
+| `[Networking] RouteStationRequestsToOwner` | true | Re-address station item RPCs to the current owner (or claim for the server). |
+| `[Networking] EnableRelayFiltering` / `LimitRelayByDistance` | true / false | Drop Everybody object relays for peers who neither know nor are near the object. Distance-only is opt-in. |
 | `[Networking] SteamSendRateMinKB` / `MaxKB` | 256 / 1024 | Steam send rate per player, KB/s (Valheim: 150). Keep min × players below the server's upload. |
-| `[Networking] StatsIntervalMinutes` | 5 | How often to log, per player, how often the send queue was full. Near 0% means the limits are not what holds you back. 0 disables. |
+| `[Networking] StatsIntervalMinutes` | 5 | How often to log, per player, how often the send queue was full (includes RTT/window when known). 0 disables. |
 | `[Server] UnityJobWorkers` | 8 | Upper limit on Unity job worker threads (Unity: one per CPU core). Only ever lowers the count; 0 leaves Unity's default. |
 | `[Server] ConsoleCommands` | true | Read commands from standard input: `save`, `stop` (saves first), `players`, `give <item> <amount> <player>` (drops the items in front of that player; the name may be a unique beginning). In AMP this is its console, see the AMP chapter. |
 | `[Server] SaveAnnouncements` | true | Show save start/result and console-shutdown announcements to vanilla clients. |
@@ -197,6 +212,13 @@ Clients need nothing.
 | `[Farming] ExtraFloraPrefabs` | empty | Extra exact prefab names for flora respawn overrides. Restart required. |
 | `[Performance] SendIntervalMs` | 100 | How often each player gets world updates. Valheim serves one player per frame, so with N players each waits N+1 frames (330 ms at 15 FPS with 4 players). Each send costs server CPU; see the performance log. 0 keeps Valheim's behaviour. |
 | `[Performance] SendBudgetMs` | 3 | Soft scheduled-send budget per frame; rotate fairly and retain bounded debt. 0 disables. |
+| `[Performance] DirtySets` | true | Only sync objects that changed since the last round (full rescan every ReconcileSeconds). Large win on big bases. |
+| `[Performance] ReconcileSeconds` | 30 | Full sync-list rescan interval when DirtySets is on. |
+| `[Performance] RelayMinIntervalMs` | 200 | Min ms between re-sending the same non-prioritised object to a peer. 0 = off. Requires DirtySets. |
+| `[Performance] TopKSort` / `TopK` | true / 0 | Bounded-heap send sort; 0 = derive K from QueueSizeKB. |
+| `[Performance] SkipRenderMesh` | true | Skip undrawn heightmap render meshes on dedicated. |
+| `[Performance] DeferAssetUnload` / `AssetUnloadMaxDeferMinutes` | true / 240 | Hold UnloadUnusedAssets until empty (or backstop). |
+| `[Performance] MotionCull` (+ Hz / Vec3) | true | Cull tiny motion ZDO writes and rate-limit NPC/physics revisions on the server. |
 | `[Performance] MaxCatchUpMs` | 100 | Longest frame counted in full. After a slow frame Unity reruns physics and every creature's fixed update for each 20 ms missed (Valheim allows 200 ms, 10 times); 100 caps it at 5. Game time runs slightly slow during such frames. 0 keeps the game's setting. |
 | `[Performance] MaxZonesPerTick` | 1 | New zones generated per zone tick (10 per second), players taking turns. 0 = one per player per tick, as before. |
 | `[Performance] ServerTargetFps` | 60 | Frame rate the server aims for (the game sets 30). With time to spare a frame no longer waits 33 ms, so reactions to players halve; under load it changes nothing. 0 keeps 30. |

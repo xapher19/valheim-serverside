@@ -22,7 +22,7 @@ namespace Valheim_Serverside.Features
                 {
                     if (__0?.m_peer?.m_socket == null) return;
                     int queued = __0.m_peer.m_socket.GetSendQueueSize();
-                    int limit = DiagnosticRuntime.NetworkingPatched ? Networking.QueueSize() : 10240;
+                    int limit = DiagnosticRuntime.NetworkingPatched ? Networking.QueueSizeFor(__0) : 10240;
                     __state = new Sample { valid = true, queue = queued, blocked = limit - queued < 2048 };
                 }
                 catch (Exception e) { DiagnosticRuntime.Fault(e); }

@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.10.11";
+		public const string PluginVersion = "1.10.13";
 
 		private static ServersidePlugin context;
 
@@ -74,6 +74,7 @@ namespace Valheim_Serverside
             availableFeatures.AddFeature(new Features.InteractionReliability());
 			availableFeatures.AddFeature(new Features.MaxObjectsPerFrame());
 			availableFeatures.AddFeature(new Features.Networking());
+			availableFeatures.AddFeature(new Features.Sync());
 			availableFeatures.AddFeature(new Features.Performance());
             availableFeatures.AddFeature(new Features.Diagnostics());
 			availableFeatures.AddFeature(new Features.AdminChat());
@@ -120,6 +121,7 @@ namespace Valheim_Serverside
                 ServerFeedback.Tick();
                 Features.TargetFpsVerifier.Tick(Time.realtimeSinceStartupAsDouble);
 				Features.PerformanceStats.Frame();
+				Features.Sync.Tick();
                 DiagnosticRuntime.Tick();
 				if (Configuration.adminChatEnabled.Value)
 				{

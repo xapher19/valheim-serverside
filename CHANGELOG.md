@@ -1,3 +1,19 @@
+## 1.10.13 — Sync/CPU reductions (server-only)
+
+- Dirty-set sync lists (only changed objects, full rescan every 30s), ZDO relay throttle (200 ms for non-prioritised objects), and Top-K send sorting.
+- Skip undrawn heightmap render meshes; defer `UnloadUnusedAssets` until the server is empty (4h backstop).
+- LeanNet-style motion/revision cull on the dedicated host (tiny Vec3/Quat writes + NPC/physics rate limits; ships and players exempt).
+- Inspired by ValheimTune / LeanNet; do not also run those mods. Vanilla clients. No ownership changes.
+
+## 1.10.12 — Long-haul networking (server-only)
+
+- Per-peer BDP send window from Steam RTT (capped by `QueueSizeKB`); PlayFab peers keep the fixed cap. Does not change ZDO ownership.
+- Optional raised ZRpc/Steam connection timeouts for slow joins.
+- Ghost-owner reclaim: quiet peers lose owned objects to the **server** after a short silence while their slot stays until the full timeout.
+- Station insert RPCs (smelter/fermenter/cooking/fireplace/shield/turret) re-addressed to the current owner or claimed by the server.
+- Filtered Everybody routed-RPC relays so distant peers do not receive unrelated object events.
+- Still incompatible with BetterNetworking / NetworkPerformanceSystem on the same server (same send path). Latency-aware player ownership is intentionally not included.
+
 ## 1.10.11 — Optional empty public-server password
 
 - Add `[Server] AllowEmptyPassword` (off by default). When enabled, public/crossplay dedicated servers may start without a password. Clear `-password` in the host panel as well.

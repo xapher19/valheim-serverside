@@ -130,6 +130,7 @@ namespace Valheim_Serverside.Features
     }
     public class MaxObjectsPerFrame : FeaturesLib.IFeature { public bool FeatureEnabled() => false; }
     public class Networking : MaxObjectsPerFrame { }
+    public class Sync : MaxObjectsPerFrame { public static void Tick() { } }
     public class Production : FeaturesLib.IFeature { public bool FeatureEnabled() => true; public class Anchor { static void Prefix() {} } public class RaidGuard { static void Prefix() {} } }
     public class Farming : MaxObjectsPerFrame { }
     public class PortalHubHooks : MaxObjectsPerFrame { }

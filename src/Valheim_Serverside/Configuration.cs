@@ -22,6 +22,17 @@ namespace PluginConfiguration
 		public static ConfigEntry<int> networkSendRateMinKB;
 		public static ConfigEntry<int> networkSendRateMaxKB;
 		public static ConfigEntry<int> networkStatsMinutes;
+		public static ConfigEntry<bool> networkBdpWindowEnabled;
+		public static ConfigEntry<int> networkBdpTargetRateKBps;
+		public static ConfigEntry<float> networkBdpFactor;
+		public static ConfigEntry<bool> networkTimeoutEnabled;
+		public static ConfigEntry<int> networkConnectionTimeoutSeconds;
+		public static ConfigEntry<int> networkLoadingTimeoutSeconds;
+		public static ConfigEntry<bool> networkGhostEvictEnabled;
+		public static ConfigEntry<float> networkGhostEvictSeconds;
+		public static ConfigEntry<bool> networkStationRoutingEnabled;
+		public static ConfigEntry<bool> networkRelayFilterEnabled;
+		public static ConfigEntry<bool> networkRelayLimitByDistance;
 
 		public static ConfigEntry<bool> consoleCommandsEnabled;
 		public static ConfigEntry<int> unityJobWorkers;
@@ -31,6 +42,19 @@ namespace PluginConfiguration
 		public static ConfigEntry<int> maxZonesPerTick;
 		public static ConfigEntry<int> performanceStatsMinutes;
 		public static ConfigEntry<int> serverTargetFps;
+
+		public static ConfigEntry<bool> syncDirtySets;
+		public static ConfigEntry<float> syncReconcileSeconds;
+		public static ConfigEntry<int> syncRelayMinIntervalMs;
+		public static ConfigEntry<bool> syncTopKSort;
+		public static ConfigEntry<int> syncTopK;
+		public static ConfigEntry<bool> skipRenderMesh;
+		public static ConfigEntry<bool> deferAssetUnload;
+		public static ConfigEntry<int> assetUnloadMaxDeferMinutes;
+		public static ConfigEntry<bool> motionCullEnabled;
+		public static ConfigEntry<float> motionCullPhysicsHz;
+		public static ConfigEntry<float> motionCullNpcHz;
+		public static ConfigEntry<float> motionCullVec3Meters;
 
 		public static ConfigEntry<bool> fixSaveClientChanges;
 		public static ConfigEntry<bool> allowEmptyPassword;
@@ -95,6 +119,33 @@ namespace PluginConfiguration
 					new AcceptableValueRange<int>(64, 4096)));
 			networkStatsMinutes = config.Bind<int>("Networking", "StatsIntervalMinutes", 5,
 				"Every this many minutes, log per player how often their send queue was full. 0 disables.");
+			networkBdpWindowEnabled = config.Bind("Networking", "EnableBdpWindow", true,
+				"Size each player's send window from measured Steam RTT (bandwidth-delay product) instead of one fixed QueueSizeKB. Nearby players get a smaller window (less queue latency); distant players get up to QueueSizeKB. Crossplay/PlayFab peers have no RTT and keep QueueSizeKB. Does not change object ownership.");
+			networkBdpTargetRateKBps = config.Bind("Networking", "BdpTargetRateKBps", 150,
+				new ConfigDescription("Target throughput used to size the BDP window, KB/s. Window ≈ rate × RTT × BdpFactor, clamped between 10 KB and QueueSizeKB.",
+					new AcceptableValueRange<int>(32, 1024)));
+			networkBdpFactor = config.Bind("Networking", "BdpFactor", 1.25f,
+				new ConfigDescription("Multiplier on the BDP window. 1.0 is exact; slightly above leaves headroom for bursts.",
+					new AcceptableValueRange<float>(0.5f, 3f)));
+			networkTimeoutEnabled = config.Bind("Networking", "EnableTimeoutTuning", true,
+				"Raise ZRpc and Steam connection timeouts so slow long-haul joins are not dropped at vanilla's 30s. Needs Networking enabled.");
+			networkConnectionTimeoutSeconds = config.Bind("Networking", "ConnectionTimeoutSeconds", 90,
+				new ConfigDescription("Quiet-connection timeout in seconds (vanilla ZRpc: 30). Applies while playing.",
+					new AcceptableValueRange<int>(30, 300)));
+			networkLoadingTimeoutSeconds = config.Bind("Networking", "LoadingTimeoutSeconds", 120,
+				new ConfigDescription("Timeout while a peer is still loading (vanilla long timeout: 90). Must be >= ConnectionTimeoutSeconds.",
+					new AcceptableValueRange<int>(60, 600)));
+			networkGhostEvictEnabled = config.Bind("Networking", "EvictGhostOwners", true,
+				"If a peer goes quiet, reclaim ZDOs they still own to the server after GhostEvictSeconds while keeping their slot until the full connection timeout. Compatible with serverside simulation; does not hand objects to other players.");
+			networkGhostEvictSeconds = config.Bind("Networking", "GhostEvictSeconds", 10f,
+				new ConfigDescription("Seconds of silence before ghost-owner reclaim. Capped below the connection timeout.",
+					new AcceptableValueRange<float>(3f, 120f)));
+			networkStationRoutingEnabled = config.Bind("Networking", "RouteStationRequestsToOwner", true,
+				"Re-address fermenter/smelter/cooking/fireplace/shield/turret item RPCs to the current owner (or claim for the server). Stops lost inserts when the client's idea of the owner is stale. Vanilla clients.");
+			networkRelayFilterEnabled = config.Bind("Networking", "EnableRelayFiltering", true,
+				"When relaying Everybody routed RPCs about a world object, only send to peers who know that object or are near it. Cuts footsteps/swings/damage spam on busy servers. Vanilla clients.");
+			networkRelayLimitByDistance = config.Bind("Networking", "LimitRelayByDistance", false,
+				"Stricter relay filter: only peers currently in the object's active area (not merely those who once knew it). Opt-in; EnableRelayFiltering must be on.");
 
 			consoleCommandsEnabled = config.Bind<bool>("Server", "ConsoleCommands", true,
 				"Read commands from standard input: status, save, stop, players, give <item> <amount> <player>. In AMP set App.HasWriteableConsole=True to type them into its console, and App.ExitMethod=String with App.ExitString=stop to shut down cleanly. On Windows also set [Logging.Console] Enabled = false in BepInEx.cfg, or BepInEx's own console takes over standard input.");
@@ -115,6 +166,38 @@ namespace PluginConfiguration
 					new AcceptableValueRange<int>(0, 240)));
 			performanceStatsMinutes = config.Bind<int>("Performance", "StatsIntervalMinutes", 5,
 				"Every this many minutes, log frame times, physics steps per frame, the cost of sending world updates and of generating zones. 0 disables.");
+
+			syncDirtySets = config.Bind("Performance", "DirtySets", true,
+				"Only consider changed objects when building each player's sync list, with a full rescan every ReconcileSeconds and on zone change. Large win on big bases. Vanilla clients. Needs restart.");
+			syncReconcileSeconds = config.Bind("Performance", "ReconcileSeconds", 30f,
+				new ConfigDescription("Full sync-list rescan interval per player when DirtySets is on.",
+					new AcceptableValueRange<float>(5f, 300f)));
+			syncRelayMinIntervalMs = config.Bind("Performance", "RelayMinIntervalMs", 200,
+				new ConfigDescription("Re-send a non-prioritised object to the same player at most this often (ms). 0 = vanilla. Players/creatures (Prioritized) are never delayed. Requires DirtySets.",
+					new AcceptableValueRange<int>(0, 2000)));
+			syncTopKSort = config.Bind("Performance", "TopKSort", true,
+				"Use a bounded heap instead of a full sort when picking which objects fit in the send window (faster joins). Needs restart.");
+			syncTopK = config.Bind("Performance", "TopK", 0,
+				new ConfigDescription("Candidates ordered per send round. 0 = QueueSizeKB*1024/64, never below 64.",
+					new AcceptableValueRange<int>(0, 4096)));
+			skipRenderMesh = config.Bind("Performance", "SkipRenderMesh", true,
+				"Skip heightmap render-mesh rebuilds on the dedicated server (never drawn). Collision mesh unchanged. Needs restart.");
+			deferAssetUnload = config.Bind("Performance", "DeferAssetUnload", true,
+				"Hold Unity's periodic UnloadUnusedAssets until no players are connected (or MaxDeferMinutes). Avoids a multi-hundred-ms hitch while people play.");
+			assetUnloadMaxDeferMinutes = config.Bind("Performance", "AssetUnloadMaxDeferMinutes", 240,
+				new ConfigDescription("Backstop: run deferred asset unload after this many minutes even if players are still online.",
+					new AcceptableValueRange<int>(30, 1440)));
+			motionCullEnabled = config.Bind("Performance", "MotionCull", true,
+				"On the dedicated server, drop tiny position/rotation ZDO writes and rate-limit NPC/physics revision spam (LeanNet-style). Ships and players are exempt. Vanilla clients. Needs restart.");
+			motionCullPhysicsHz = config.Bind("Performance", "MotionCullPhysicsHz", 8f,
+				new ConfigDescription("Max network revision rate for physics objects (drops, projectiles). Floor 4.",
+					new AcceptableValueRange<float>(4f, 20f)));
+			motionCullNpcHz = config.Bind("Performance", "MotionCullNpcHz", 8f,
+				new ConfigDescription("Max network revision rate for non-player characters. Floor 4.",
+					new AcceptableValueRange<float>(4f, 20f)));
+			motionCullVec3Meters = config.Bind("Performance", "MotionCullVec3Meters", 0.05f,
+				new ConfigDescription("Ignore Vector3 ZDO writes smaller than this (metres). Rotations use a similar threshold.",
+					new AcceptableValueRange<float>(0.01f, 0.2f)));
 
 			fixSaveClientChanges = config.Bind<bool>("Fixes", "SaveClientChanges", true,
 				"Mark a world chunk as changed when a player's own change to an object arrives, so the next save writes it. Valheim 1.0 only rewrites changed chunks and does not count changes received from players, so what a player just built or moved could be missing after a restart.");
