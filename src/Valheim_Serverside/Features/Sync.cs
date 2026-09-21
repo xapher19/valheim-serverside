@@ -220,6 +220,8 @@ namespace Valheim_Serverside.Features
 				if (!MotionCull.Active || ___m_nview == null || !___m_nview.IsValid()) return;
 				ZDO zdo = ___m_nview.GetZDO();
 				if (zdo.GetFloat(ZDOVars.s_rudder, out _)) return;
+				// Falling trees / tumbling logs / debris need full-rate sync — 8 Hz looks janky.
+				if (MotionCull.IsActivelyTumbling(__instance)) return;
 				float rate = Mathf.Max(4f, Configuration.motionCullPhysicsHz.Value);
 				forcing = MotionCull.ShouldUpdate(zdo, 0.5f);
 				freezing = !forcing && !MotionCull.ShouldUpdate(zdo, rate);
@@ -473,6 +475,21 @@ namespace Valheim_Serverside.Features
 				double baseT = netTime + 0.023 * (zdo.m_uid.ID & 4095);
 				double next = baseT + lastDt;
 				return Mathf.RoundToInt((float)(baseT * rateHz)) != Mathf.RoundToInt((float)(next * rateHz));
+			}
+
+			/// <summary>
+			/// Non-kinematic rigidbodies that are still moving (TreeLog fall, timber, ore chunks).
+			/// Skip MotionCull so clients see smooth physics instead of 8 Hz stutter.
+			/// </summary>
+			internal static bool IsActivelyTumbling(ZSyncTransform sync)
+			{
+				if (!sync) return false;
+				Rigidbody body = sync.GetComponent<Rigidbody>();
+				if (!body || body.isKinematic || body.IsSleeping()) return false;
+				const float linSq = 0.04f;   // 0.2 m/s
+				const float angSq = 0.25f;  // ~0.5 rad/s
+				return body.linearVelocity.sqrMagnitude > linSq
+					|| body.angularVelocity.sqrMagnitude > angSq;
 			}
 		}
 	}

@@ -140,8 +140,15 @@ namespace Valheim_Serverside
 				try { if (drop.IsPiece()) continue; } catch { }
 
 				Rigidbody body = drop.GetComponent<Rigidbody>();
-				if (body && !body.isKinematic && body.linearVelocity.sqrMagnitude > maxSpeedSq)
-					continue; // still tumbling — leave physics alone
+				// Wait until PhysX has put the drop to sleep (or nearly stopped). Falling
+				// tree wood keeps bouncing longer than MagnetSettleSeconds alone covers.
+				if (body && !body.isKinematic)
+				{
+					if (!body.IsSleeping() && body.linearVelocity.sqrMagnitude > maxSpeedSq)
+						continue;
+					if (!body.IsSleeping() && body.angularVelocity.sqrMagnitude > 1f)
+						continue;
+				}
 
 				Vector3 itemPos = zdo.GetPosition();
 				ZNetPeer closest = null;

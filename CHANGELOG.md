@@ -1,3 +1,8 @@
+## 1.11.4 — Smooth falling trees
+
+- MotionCull no longer rate-limits actively tumbling rigidbodies (`TreeLog` fall, timber, ore chunks) — they sync at full rate instead of ~8 Hz stutter.
+- Magnet waits for PhysX sleep / low angular velocity before pulling wood, so it stops fighting falling debris.
+
 ## 1.11.3 — Magnet that stays on
 
 - Magnet waits for loot to settle (`MagnetSettleSeconds`, default 1.5s) and skips rigidbodies still moving faster than `MagnetMaxSpeed`.
