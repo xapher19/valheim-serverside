@@ -5,7 +5,8 @@ using PluginConfiguration;
 namespace Valheim_Serverside.Features
 {
 	/*
-		Fixes for vanilla server behaviour that loses data.
+		Fixes for vanilla server behaviour that loses data, plus small dedicated-server
+		startup overrides.
 
 		Valheim 1.0 saves the world in chunks and only rewrites the chunks it marked as changed.
 		A chunk is marked when the server itself changes an object (ZDO.IncreaseDataRevision) or
@@ -20,18 +21,46 @@ namespace Valheim_Serverside.Features
 	{
 		public bool FeatureEnabled()
 		{
-			return Configuration.fixSaveClientChanges.Value;
+			return Configuration.fixSaveClientChanges.Value || Configuration.allowEmptyPassword.Value;
 		}
 
 		[HarmonyPatch(typeof(ZDO), "Deserialize")]
 		public static class ZDO_Deserialize_Patch
 		{
+			static bool Prepare() => Configuration.fixSaveClientChanges.Value;
+
 			static void Postfix(ZDO __instance)
 			{
 				if (__instance.Persistent && ZNet.instance && ZNet.instance.IsServer() && ZDOMan.instance != null)
 				{
 					ZDOMan.instance.SetDirtySector(__instance);
 				}
+			}
+		}
+
+		// Public/crossplay dedicated servers call IsPublicPasswordValid during -password parse
+		// and Quit on failure. Empty m_serverPassword already skips the join prompt.
+		[HarmonyPatch(typeof(FejdStartup), "IsPublicPasswordValid")]
+		public static class AllowEmptyPublicPassword
+		{
+			static bool Prepare() => Configuration.allowEmptyPassword.Value;
+
+			static bool Prefix(ref bool __result)
+			{
+				__result = true;
+				return false;
+			}
+		}
+
+		[HarmonyPatch(typeof(FejdStartup), "GetPublicPasswordError")]
+		public static class ClearEmptyPublicPasswordError
+		{
+			static bool Prepare() => Configuration.allowEmptyPassword.Value;
+
+			static bool Prefix(ref string __result)
+			{
+				__result = "";
+				return false;
 			}
 		}
 	}

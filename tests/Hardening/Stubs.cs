@@ -93,6 +93,7 @@ namespace PluginConfiguration
         public static Setting<int> idleFps = new(0);
         public static Setting<bool> modEnabled = new(true), consoleCommandsEnabled = new(false), adminChatEnabled = new(false);
         public static Setting<bool> portalHubEnabled = new(true);
+        public static Setting<bool> allowEmptyPassword = new(false);
         public static void Load(object c) { }
     }
 }

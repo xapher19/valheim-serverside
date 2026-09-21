@@ -6,9 +6,13 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.10**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.11**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.11 — Optional empty public-server password
+
+- Opt-in `[Server] AllowEmptyPassword`: public/crossplay dedicated servers can start with no password. Clear `-password` in the host panel too.
 
 ### 1.10.10 — Stop portal reconnect spam in hall mode
 
@@ -175,6 +179,7 @@ Clients need nothing.
 | `[Server] UnityJobWorkers` | 8 | Upper limit on Unity job worker threads (Unity: one per CPU core). Only ever lowers the count; 0 leaves Unity's default. |
 | `[Server] ConsoleCommands` | true | Read commands from standard input: `save`, `stop` (saves first), `players`, `give <item> <amount> <player>` (drops the items in front of that player; the name may be a unique beginning). In AMP this is its console, see the AMP chapter. |
 | `[Server] SaveAnnouncements` | true | Show save start/result and console-shutdown announcements to vanilla clients. |
+| `[Server] AllowEmptyPassword` | false | Allow public/crossplay dedicated servers to start with no password. Also clear `-password` in the host panel. |
 | `[Production] Enabled` | true | Raid start/spawn guards and optional empty-world clock. Does **not** keep bases loaded. Restart required. |
 | `[Production] AdvanceTimeWhenEmpty` | true | Advance world time (days/weather) with no players. No offline catch-up. |
 | `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. |
@@ -384,5 +389,6 @@ A raid can start/spawn only with a connected character in its configured event r
 | `[Performance] SendBudgetMs` | 3 | Soft scheduled-send budget per frame; 0 disables the budget. |
 | `[Performance] IdleTargetFps` | 30 | Empty-server cap, never above active target; 0 disables. Requires a positive `ServerTargetFps`. |
 | `[Server] SaveAnnouncements` | true | Vanilla in-game save/result and console-shutdown messages. |
+| `[Server] AllowEmptyPassword` | false | Allow public/crossplay dedicated servers to start with no password. Clear `-password` in the host panel too. |
 
 Validation includes regression tests and hook installation against real game assemblies. Live gameplay validation is still required for raid, portal-hub and planting behaviour. Installation: stop the server, back up the world, replace the existing Northwatch DLL, then inspect startup patch health and `status`.

@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.10.10";
+		public const string PluginVersion = "1.10.11";
 
 		private static ServersidePlugin context;
 
@@ -99,6 +99,8 @@ namespace Valheim_Serverside
 			Logger.LogInfo($"{PluginName} installed");
 			if (Configuration.portalHubEnabled.Value)
 				Logger.LogInfo("Portal hall enabled: leave one home portal untagged and walk through it to pick a labeled destination. Tagged world portals return home. Remove ServersideQoL AutoPortalHub if present.");
+			if (Configuration.allowEmptyPassword.Value)
+				Logger.LogInfo("AllowEmptyPassword enabled: public/crossplay may start with no password. Clear -password in the host panel if it still injects one.");
 		}
 
 		private static bool consoleStarted;

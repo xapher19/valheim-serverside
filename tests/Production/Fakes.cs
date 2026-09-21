@@ -280,6 +280,7 @@ namespace PluginConfiguration
         public static Entry<bool> productionEnabled=new(true),productionLivestock=new(false),productionFlora=new(true), advanceEmptyTime=new(true),saveAnnouncements=new(true);
         public static Entry<bool> farmingEnabled=new(false),farmingPlaceAnywhere=new(false),farmingRequireSunlight=new(true),farmingRequireGrowthSpace=new(true),farmingItemPlanting=new(true);
         public static Entry<bool> portalHubEnabled=new(true), portalHubAutoName=new(false);
+        public static Entry<bool> allowEmptyPassword=new(false);
         public static Entry<int> productionScanBudget=new(2048), farmingFloraRespawnMinutes=new(0), farmingItemPlantCost=new(5);
         public static Entry<float> farmingCropGrowTimeMin=new(0f), farmingCropGrowTimeMax=new(0f), farmingItemPlantSpacing=new(2f), farmingItemPlantSettleSeconds=new(2f), farmingGrowSpaceScale=new(0.4f);
         public static Entry<string> productionExclude=new(""), farmingExtraFlora=new(""), portalHubInclude=new("*"), portalHubExclude=new(""), portalHubAutoNameFormat=new("{0} {1:D2}");

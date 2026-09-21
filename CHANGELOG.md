@@ -1,3 +1,7 @@
+## 1.10.11 — Optional empty public-server password
+
+- Add `[Server] AllowEmptyPassword` (off by default). When enabled, public/crossplay dedicated servers may start without a password. Clear `-password` in the host panel as well.
+
 ## 1.10.10 — Stop portal reconnect spam in hall mode
 
 - Take over vanilla `ConnectPortals` while an untagged home portal owns the destination hall. Vanilla was re-pairing hall twins every 5s, then Northwatch rewired them home — endless "Connected portals" log spam and activate VFX.
