@@ -420,7 +420,7 @@ A raid can start/spawn only with a connected character in its configured event r
 | `[Production] AdvanceTimeWhenEmpty` | true | World time, including day/weather, advances with no players. No offline catch-up. |
 | `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. Remove AutoPortalHub; keep PortalProgression. |
 | `[QoL] Enabled` | true | Magnet pickup, instant loot, structure repair near stations, personalized carry / near-bench durability. Vanilla clients. |
-| `[QoL] ChestExtraRows` | 1 | Extra rows on player-built chests. |
+| `[QoL] ChestExtraRows` | 0 | Extra rows on player-built chests (in-place HasFields). Leave 0 after the 1.11.1–1.11.4 wipe. |
 | `[QoL] Backpack` | true | Wave emote opens a private-chest backpack. |
 | `[QoL] CraftFromChests` | true | At a station, pull nearby chest mats into inventory; return leftovers on leave. |
 | `[QoL] CarryWeightRate` | 1 | Carry capacity multiplier (try 1.5–2). |
