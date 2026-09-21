@@ -1,3 +1,8 @@
+## 1.11.6 — Tree fall sync (relay + cull)
+
+- Falling `TreeLog`s were still janky because `RelayMinIntervalMs` (200) capped non-prioritised ZDOs at ~5 Hz even after MotionCull exemption.
+- Hot physics (TreeLog / tumbling rigidbodies) now bypass relay throttle and force full MotionCull writes (no Vec3/Quat drop).
+
 ## 1.11.5 — CRITICAL: stop deleting player chests
 
 - **Bug:** `ContainerExpand` called `ZNetScene.Destroy` after claiming ownership. That permanently `DestroyZDO`s player chests (loot gone from the world).

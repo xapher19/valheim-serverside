@@ -220,8 +220,13 @@ namespace Valheim_Serverside.Features
 				if (!MotionCull.Active || ___m_nview == null || !___m_nview.IsValid()) return;
 				ZDO zdo = ___m_nview.GetZDO();
 				if (zdo.GetFloat(ZDOVars.s_rudder, out _)) return;
-				// Falling trees / tumbling logs / debris need full-rate sync — 8 Hz looks janky.
-				if (MotionCull.IsActivelyTumbling(__instance)) return;
+				// Falling TreeLog / tumbling debris: bypass rate-limit AND Vec3/Quat culls.
+				if (MotionCull.IsHotPhysics(__instance, ___m_nview))
+				{
+					forcing = true;
+					MotionCull.Force++;
+					return;
+				}
 				float rate = Mathf.Max(4f, Configuration.motionCullPhysicsHz.Value);
 				forcing = MotionCull.ShouldUpdate(zdo, 0.5f);
 				freezing = !forcing && !MotionCull.ShouldUpdate(zdo, rate);
@@ -390,6 +395,8 @@ namespace Valheim_Serverside.Features
 				if (minMs <= 0 || z == null) return false;
 				if (z.Type == ZDO.ObjectType.Prioritized) return false;
 				if (z.GetOwner() == peer.m_peer.m_uid) return false;
+				// TreeLog / tumbling rigidbodies must not sit behind the 200 ms relay cap (~5 Hz).
+				if (MotionCull.IsHotZdo(z)) return false;
 				if (!peer.m_zdos.TryGetValue(z.m_uid, out var info)) return false;
 				return (Time.time - info.m_syncTime) * 1000f < minMs;
 			}
@@ -479,17 +486,39 @@ namespace Valheim_Serverside.Features
 
 			/// <summary>
 			/// Non-kinematic rigidbodies that are still moving (TreeLog fall, timber, ore chunks).
-			/// Skip MotionCull so clients see smooth physics instead of 8 Hz stutter.
+			/// Skip MotionCull / relay throttle so clients see smooth physics.
 			/// </summary>
 			internal static bool IsActivelyTumbling(ZSyncTransform sync)
 			{
 				if (!sync) return false;
 				Rigidbody body = sync.GetComponent<Rigidbody>();
 				if (!body || body.isKinematic || body.IsSleeping()) return false;
-				const float linSq = 0.04f;   // 0.2 m/s
-				const float angSq = 0.25f;  // ~0.5 rad/s
+				const float linSq = 0.01f;  // 0.1 m/s
+				const float angSq = 0.04f;  // ~0.2 rad/s
 				return body.linearVelocity.sqrMagnitude > linSq
 					|| body.angularVelocity.sqrMagnitude > angSq;
+			}
+
+			internal static bool IsHotPhysics(ZSyncTransform sync, ZNetView view)
+			{
+				if (view)
+				{
+					TreeLog log = view.GetComponent<TreeLog>();
+					if (log)
+					{
+						Rigidbody body = view.GetComponent<Rigidbody>();
+						if (body && !body.isKinematic && !body.IsSleeping()) return true;
+					}
+				}
+				return IsActivelyTumbling(sync);
+			}
+
+			internal static bool IsHotZdo(ZDO z)
+			{
+				if (z == null || !ZNetScene.instance) return false;
+				ZNetView view = ZNetScene.instance.FindInstance(z);
+				if (!view) return false;
+				return IsHotPhysics(view.GetComponent<ZSyncTransform>(), view);
 			}
 		}
 	}
