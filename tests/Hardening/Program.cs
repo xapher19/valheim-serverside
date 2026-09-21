@@ -200,8 +200,17 @@ static class Program
         Check(perfSrc != null, "Performance.cs not found");
         Check(perfSrc.Contains("HotPhysicsGate.Active"), "Send interval must tighten while TreeLogs tumble");
 
-        string budgets = System.IO.File.ReadAllText("/Users/ash/Projects/valheim-serverside/src/Valheim_Serverside/WorkBudgets.cs");
-        Check(budgets.Contains("class HotPhysicsGate"), "HotPhysicsGate missing");
+        string budgets = null;
+        foreach (var candidate in new[]
+        {
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src/Valheim_Serverside/WorkBudgets.cs")),
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "../../../../src/Valheim_Serverside/WorkBudgets.cs")),
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "../../../../../src/Valheim_Serverside/WorkBudgets.cs")),
+        })
+        {
+            if (System.IO.File.Exists(candidate)) { budgets = System.IO.File.ReadAllText(candidate); break; }
+        }
+        Check(budgets != null && budgets.Contains("class HotPhysicsGate"), "HotPhysicsGate missing");
 
         Console.WriteLine($"Passed {checks} hardening assertions.");
     }
