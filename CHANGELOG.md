@@ -1,3 +1,10 @@
+## 1.11.9 — Tree falls were capped by SendIntervalMs
+
+- Root cause of remaining ~8–10 Hz tree falls: `SendIntervalMs` (default was 100) only delivers ZDOs that often, and `ForceSendZDO` only queues for the next tick.
+- Tumbling TreeLogs now **flush `SendZDOs` immediately** (~30 Hz) and temporarily tighten the peer send interval to 33 ms.
+- Any awake non-kinematic Rigidbody bypasses MotionCull rate-limit.
+- Default `SendIntervalMs` → **50**. Existing configs still at 100 should set `SendIntervalMs = 50`.
+
 ## 1.11.8 — Enemies and birds full sync
 
 - **Characters** (players and enemies): MotionCull rate-limit, ground-tilt freeze, and velocity cull disabled — combat stays full-rate.

@@ -52,6 +52,9 @@ namespace Valheim_Serverside.Features
             {
                 double interval = Configuration.sendIntervalMs.Value / 1000.0;
                 if (interval <= 0) return true;
+                // Falling trees need ~30 Hz peer sends; SendIntervalMs 100 alone looks like ~8–10 Hz.
+                if (HotPhysicsGate.Active)
+                    interval = Math.Min(interval, 0.033);
                 var peers = __instance.m_peers;
                 int count = peers.Count;
                 int sends = budget.Due(Time.realtimeSinceStartupAsDouble, count, interval);

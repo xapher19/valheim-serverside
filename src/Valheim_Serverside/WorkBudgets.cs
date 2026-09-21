@@ -2,7 +2,15 @@ using System;
 
 namespace Valheim_Serverside
 {
-    // Host-independent controllers: conservative recovery, bounded debt, no catch-up bursts.
+    /// <summary>Shared flag: tumbling TreeLogs / debris need a faster peer send cadence.</summary>
+    internal static class HotPhysicsGate
+    {
+        private static double hotUntil;
+        internal static bool Active => UnityEngine.Time.realtimeSinceStartupAsDouble < hotUntil;
+        internal static void Note(double holdSeconds = 0.5) =>
+            hotUntil = Math.Max(hotUntil, UnityEngine.Time.realtimeSinceStartupAsDouble + holdSeconds);
+    }
+
     internal sealed class CreationBudget
     {
         private double costMs = 0.1;

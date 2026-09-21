@@ -172,8 +172,8 @@ namespace PluginConfiguration
 			unityJobWorkers = config.Bind<int>("Server", "UnityJobWorkers", 8,
 				"Upper limit on Unity job worker threads. Unity starts one per CPU core, and on many-core hosts the idle ones still use CPU. Only ever lowers the count. 0 leaves Unity's default.");
 
-			sendIntervalMs = config.Bind<int>("Performance", "SendIntervalMs", 100,
-				new ConfigDescription("How often each player is sent world updates, in real milliseconds. Valheim sends to one player per frame, so each player waits players+1 frames: at 15 FPS with 4 players ~330 ms. Every send builds that player's list of nearby objects, so shorter intervals cost server CPU. 0 keeps Valheim's behaviour.",
+			sendIntervalMs = config.Bind<int>("Performance", "SendIntervalMs", 50,
+				new ConfigDescription("How often each player is sent world updates, in real milliseconds. 50 ≈ vanilla round rate; 100 feels like ~10 Hz (janky tree falls). While TreeLogs tumble, Northwatch temporarily tightens to 33 ms. 0 keeps Valheim's one-peer-per-frame behaviour.",
 					new AcceptableValueRange<int>(0, 1000)));
 			maxCatchUpMs = config.Bind<int>("Performance", "MaxCatchUpMs", 100,
 				new ConfigDescription("Longest frame the server counts in full (Unity's maximum allowed timestep). After a slow frame Unity runs physics and every creature's fixed update again for each 20 ms it fell behind; Valheim allows 200 ms (10 steps), 100 caps it at 5, so one slow frame does not make the next one slow too. Game time runs slightly slower during such frames. Needs a restart. 0 keeps the game's setting.",

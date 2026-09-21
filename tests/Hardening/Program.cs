@@ -182,9 +182,26 @@ static class Program
         Check(syncSrc.Contains("ForceSendHot"), "TreeLog ForceSend while tumbling missing");
         Check(syncSrc.Contains("IsCreaturePhysicsPrefab(__instance.GetPrefab())"), "IncreaseDataRevision must never freeze TreeLog/birds");
         Check(!syncSrc.Contains("static bool Prefix() => !MotionCull.IsFreezing;"), "Blind IncreaseDataRevision freeze returned");
+        Check(syncSrc.Contains("bypasses SendIntervalMs"), "TreeLog must flush SendZDOs past SendIntervalMs");
         Check(!syncSrc.Contains("class Character_MotionCull"), "Character MotionCull must stay removed (enemies exempt)");
         Check(!syncSrc.Contains("class Character_SyncVelocity_Cull"), "Character SyncVelocity cull must stay removed");
         Check(!syncSrc.Contains("class Character_UpdateGroundTilt_Cull"), "Character ground-tilt freeze must stay removed");
+
+        string perfSrc = null;
+        foreach (var candidate in new[]
+        {
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src/Valheim_Serverside/Features/Performance.cs")),
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "../../../../src/Valheim_Serverside/Features/Performance.cs")),
+            "/Users/ash/Projects/valheim-serverside/src/Valheim_Serverside/Features/Performance.cs",
+        })
+        {
+            if (System.IO.File.Exists(candidate)) { perfSrc = System.IO.File.ReadAllText(candidate); break; }
+        }
+        Check(perfSrc != null, "Performance.cs not found");
+        Check(perfSrc.Contains("HotPhysicsGate.Active"), "Send interval must tighten while TreeLogs tumble");
+
+        string budgets = System.IO.File.ReadAllText("/Users/ash/Projects/valheim-serverside/src/Valheim_Serverside/WorkBudgets.cs");
+        Check(budgets.Contains("class HotPhysicsGate"), "HotPhysicsGate missing");
 
         Console.WriteLine($"Passed {checks} hardening assertions.");
     }

@@ -6,9 +6,12 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.11.8**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.11.9**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.11.9 — Tree fall send-rate fix
+Falling TreeLogs flush immediately (~30 Hz); SendIntervalMs default 50. Set `SendIntervalMs = 50` if your cfg still has 100.
 
 ### 1.11.8 — Enemies and birds full sync
 Characters exempt from MotionCull; birds Prioritized + full ZSyncTransform rate.

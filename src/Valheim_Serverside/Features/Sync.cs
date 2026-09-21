@@ -3,6 +3,8 @@ using HarmonyLib;
 using PluginConfiguration;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
@@ -227,11 +229,22 @@ namespace Valheim_Serverside.Features
 				if (!MotionCull.Active || ___m_nview == null || !___m_nview.IsValid()) return;
 				ZDO zdo = ___m_nview.GetZDO();
 				if (zdo.GetFloat(ZDOVars.s_rudder, out _)) return;
-				// Falling TreeLog / birds / tumbling debris: bypass rate-limit AND Vec3/Quat culls.
+				// Any live physics body (TreeLog fall, debris) — never rate-limit / freeze.
+				Rigidbody live = __instance.GetComponent<Rigidbody>();
+				if (live && !live.isKinematic && !live.IsSleeping())
+				{
+					forcing = true;
+					MotionCull.Force++;
+					MotionCull.NoteHot();
+					if (___m_nview.GetComponent<TreeLog>())
+						MotionCull.ForceSendHot(___m_nview);
+					return;
+				}
 				if (MotionCull.IsHotPhysics(__instance, ___m_nview))
 				{
 					forcing = true;
 					MotionCull.Force++;
+					MotionCull.NoteHot();
 					if (___m_nview.GetComponent<TreeLog>())
 						MotionCull.ForceSendHot(___m_nview);
 					return;
@@ -430,12 +443,17 @@ namespace Valheim_Serverside.Features
 		{
 			private static double netTime;
 			private static float lastDt = 0.01f;
-			private static float nextForceSend;
+			private static readonly Dictionary<long, float> peerFlushAt = new Dictionary<long, float>();
+			private static MethodInfo sendZdos;
+			private static bool hotLogged;
 			private static readonly Dictionary<int, bool> treeLogPrefabCache = new Dictionary<int, bool>();
 			private static readonly Dictionary<int, bool> birdPrefabCache = new Dictionary<int, bool>();
 			private static readonly Dictionary<int, bool> creaturePhysicsCache = new Dictionary<int, bool>();
 			internal static int Freeze;
 			internal static int Force;
+
+			internal static bool AnyHotThisFrame => HotPhysicsGate.Active;
+			internal static void NoteHot() => HotPhysicsGate.Note();
 
 			internal static bool Active =>
 				Configuration.motionCullEnabled.Value
@@ -551,23 +569,41 @@ namespace Valheim_Serverside.Features
 				return IsHotPhysics(view.GetComponent<ZSyncTransform>(), view);
 			}
 
-			/// <summary>Push tumbling logs into the next send even if DirtySets/TopK would delay them.</summary>
+			/// <summary>
+			/// Queue the log AND flush SendZDOs immediately. ForceSendZDO alone only waits for
+			/// the next SendIntervalMs tick (~100 ms / 10 Hz) — that is the remaining tree jank.
+			/// </summary>
 			internal static void ForceSendHot(ZNetView view)
 			{
 				if (view == null || !view.IsValid() || ZDOMan.instance == null || ZNet.instance == null) return;
 				float now = Time.time;
-				if (now < nextForceSend) return;
-				nextForceSend = now + 0.05f; // 20 Hz force-send budget shared across hot logs
 				ZDO zdo = view.GetZDO();
 				if (zdo == null || !zdo.IsValid()) return;
+
 				ZDOMan.instance.ForceSendZDO(zdo.m_uid);
-				List<ZNetPeer> peers = ZNet.instance.GetPeers();
-				if (peers == null) return;
-				for (int i = 0; i < peers.Count; i++)
+				List<ZDOMan.ZDOPeer> zpeers = ZDOMan.instance.m_peers;
+				if (zpeers == null || zpeers.Count == 0) return;
+
+				if (sendZdos == null)
+					sendZdos = AccessTools.Method(typeof(ZDOMan), "SendZDOs", new[] { typeof(ZDOMan.ZDOPeer), typeof(bool) });
+				if (sendZdos == null) return;
+
+				for (int i = 0; i < zpeers.Count; i++)
 				{
-					ZNetPeer peer = peers[i];
-					if (peer == null || !peer.IsReady()) continue;
-					ZDOMan.instance.ForceSendZDO(peer.m_uid, zdo.m_uid);
+					ZDOMan.ZDOPeer zp = zpeers[i];
+					if (zp?.m_peer == null || !zp.m_peer.IsReady()) continue;
+					long uid = zp.m_peer.m_uid;
+					ZDOMan.instance.ForceSendZDO(uid, zdo.m_uid);
+					if (peerFlushAt.TryGetValue(uid, out float next) && now < next) continue;
+					peerFlushAt[uid] = now + 0.033f; // ≤30 Hz flush per peer while logs tumble
+					try { sendZdos.Invoke(ZDOMan.instance, new object[] { zp, true }); }
+					catch (Exception) { }
+				}
+
+				if (!hotLogged)
+				{
+					hotLogged = true;
+					ServersidePlugin.logger?.LogInfo("Sync: tumbling TreeLog flush active (bypasses SendIntervalMs for falling trunks).");
 				}
 			}
 		}

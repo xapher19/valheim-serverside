@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.11.8";
+		public const string PluginVersion = "1.11.9";
 
 		private static ServersidePlugin context;
 
@@ -100,6 +100,8 @@ namespace Valheim_Serverside
 			QoLRuntime.Installed = true;
 			Features.TargetFpsVerifier.Start(Time.realtimeSinceStartupAsDouble);
 			Logger.LogInfo($"{PluginName} installed");
+			if (Configuration.sendIntervalMs.Value >= 100)
+				Logger.LogWarning($"SendIntervalMs={Configuration.sendIntervalMs.Value} caps world sync at ~{1000 / Math.Max(1, Configuration.sendIntervalMs.Value)} Hz — set to 50 (or lower) for smooth tree falls. Falling TreeLogs also flush immediately in 1.11.9+.");
 			if (Configuration.qolEnabled.Value)
 			{
 				Logger.LogInfo("QoL enabled: magnet pickup, instant loot, structure repair, carry/durability keys, chest +rows, backpack emote, craft-from-chests shuttle (vanilla clients).");
