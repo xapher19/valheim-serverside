@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.10.14";
+		public const string PluginVersion = "1.10.15";
 
 		private static ServersidePlugin context;
 
@@ -109,22 +109,19 @@ namespace Valheim_Serverside
 
 		private static void WarnPortalHubConflicts(ManualLogSource log)
 		{
-			string[] rivals =
+			const string autoHub = "ArgusMagnus.ServersideQoL.AutoPortalHub";
+			const string progression = "ArgusMagnus.ServersideQoL.PortalProgression";
+			try
 			{
-				"ArgusMagnus.ServersideQoL.AutoPortalHub",
-				"ArgusMagnus.ServersideQoL.PortalProgression",
-			};
-			foreach (string id in rivals)
+				var infos = BepInEx.Bootstrap.Chainloader.PluginInfos;
+				if (infos.ContainsKey(autoHub))
+					log.LogWarning($"Portal hall: '{autoHub}' is also loaded and may fight Northwatch portal pairing. Remove AutoPortalHub from BepInEx/plugins (keep PortalProgression if you use boss-gated portal cargo).");
+				if (infos.ContainsKey(progression))
+					log.LogInfo($"Portal hall: '{progression}' loaded — compatible. Boss-unlocked ores/metals still strip at the portal before travel; Northwatch only handles hall pairing.");
+			}
+			catch
 			{
-				try
-				{
-					if (!BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(id)) continue;
-				}
-				catch
-				{
-					return;
-				}
-				log.LogWarning($"Portal hall: '{id}' is also loaded and may fight Northwatch portal pairing. Remove that ServersideQoL plugin from BepInEx/plugins if the destination hall misbehaves.");
+				// Chainloader not ready; skip advisory.
 			}
 		}
 

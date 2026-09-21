@@ -1,8 +1,13 @@
+## 1.10.15 — PortalProgression compatibility
+
+- Treat ServersideQoL **PortalProgression** as compatible with the portal hall (boss-gated ore/metal teleport). Only **AutoPortalHub** is warned as a pairing rival.
+- Hall travel still uses vanilla `IsTeleportable` so PortalProgression can strip unlocked cargo before the trip.
+
 ## 1.10.14 — Idle FPS and planting log noise
 
 - Default `[Performance] IdleTargetFps` is now `0` (keep `ServerTargetFps` while empty). Set it to `30` if you want the old empty-server CPU save. Verifier keeps re-applying the target if something resets it, and labels idle vs active in the log.
 - Stop spamming the server log for leftover single harvest items that cannot plant; only warn a nearby player.
-- Warn clearly when ServersideQoL AutoPortalHub / PortalProgression is loaded alongside the portal hall.
+- Warn when ServersideQoL AutoPortalHub is loaded alongside the portal hall (superseded for PortalProgression in 1.10.15).
 
 ## 1.10.13 — Sync/CPU reductions (server-only)
 

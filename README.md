@@ -6,9 +6,12 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.14**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.15**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.15 — PortalProgression compatibility
+Keep ServersideQoL **PortalProgression** for boss-gated portal cargo. Northwatch only replaces **AutoPortalHub** pairing; hall teleports still honour vanilla `IsTeleportable` so progression stripping works.
 
 ### 1.10.14 — Idle FPS and planting log noise
 
@@ -78,7 +81,7 @@ Current custom build: **Northwatch 1.10.14**, compiled and hook-tested against V
 
 - Keep **player-planted** berry bushes, mushrooms and flowers loaded under Production (`[Production] Flora`, on by default). Wild flora is ignored so meadows are not pinned.
 - **Production anchors now require a piece creator** (player-built). Wild beehives, sap collectors and other world props no longer pin zones or load nearby dungeons. `[Production] Livestock` defaults to off.
-- Built-in **portal hub** (`[PortalHub]`, on by default): unpaired portal tags get a matching hub portal in a sky platform. Remove ServersideQoL AutoPortalHub (and related portal packages) so they do not fight. Independently implemented from public behaviour docs; that mod’s source is not bundled.
+- Built-in **portal hub** (`[PortalHub]`, on by default): unpaired portal tags get a matching hub portal in a sky platform. Remove ServersideQoL **AutoPortalHub** so it does not fight pairing. Keep **PortalProgression** (boss-gated ores through portals) — it is compatible. Independently implemented from public behaviour docs; that mod’s source is not bundled.
 - Optional `[Farming]` retunes (off by default): flora respawn minutes, crop grow times, and PlaceAnywhere / sunlight / growth-space relaxation for server-side plant simulation.
 - Does **not** add cultivator recipes, meshes, hover UI or ServerSync. Planting extra flora uses item drops (1.10.2), not a client planting mod.
 ### 1.10.0 — Persistent production and bounded server work
@@ -397,7 +400,7 @@ A raid can start/spawn only with a connected character in its configured event r
 |---|---|---|
 | `[Production] Enabled` | true | Raid start/spawn guards; does not keep bases loaded; restart required. |
 | `[Production] AdvanceTimeWhenEmpty` | true | World time, including day/weather, advances with no players. No offline catch-up. |
-| `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. Remove ServersideQoL AutoPortalHub first. |
+| `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. Remove AutoPortalHub; keep PortalProgression. |
 | `[PortalHub] Include` / `Exclude` | `*` / empty | Wildcard filters on portal tags. |
 | `[PortalHub] AutoNameNewPortals` | false | Name empty tags using AutoNameFormat before pairing. |
 | `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | `{0}`=biome name, `{1}`=unique integer. |

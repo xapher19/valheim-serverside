@@ -11,8 +11,9 @@ namespace Valheim_Serverside
 {
 	// Independent portal-hub for dedicated servers. Inspired by the public behaviour of
 	// ArgusMagnus ServersideQoL AutoPortalHub (pair unpaired portal tags via a generated hub)
-	// but does not include or depend on that mod's source. Remove AutoPortalHub / ServersideQoL
-	// portal packages when using this; running both will fight over hub objects.
+	// but does not include or depend on that mod's source. Remove AutoPortalHub when using this;
+	// running both will fight over hub objects. ServersideQoL PortalProgression is compatible:
+	// it temporarily strips boss-unlocked cargo so vanilla IsTeleportable passes — keep it.
 	//
 	// Vanilla clients have no RPC that opens a destination dropdown. Custom RPCs are ignored
 	// unless the client registered them. The selectable UI is therefore vanilla pieces the
@@ -497,7 +498,9 @@ namespace Valheim_Serverside
 			return null;
 		}
 
-		// Match vanilla TeleportWorld: ores / non-teleportable cargo cannot use portals.
+		// Match vanilla TeleportWorld. PortalProgression (ServersideQoL) strips boss-unlocked
+		// ores into a temp chest while near a portal; once inventory is clean, IsTeleportable
+		// succeeds and hall travel proceeds. Do not bypass this check or reimplement unlocks.
 		private static bool CanPortalTravel(Player player, bool allowAllItems, ZNetPeer peer)
 		{
 			if (player == null)
