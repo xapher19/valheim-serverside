@@ -204,7 +204,14 @@ namespace Valheim_Serverside.Features
 		[HarmonyPatch(typeof(ZDO), nameof(ZDO.IncreaseDataRevision))]
 		public static class ZDO_IncreaseDataRevision_Freeze
 		{
-			static bool Prefix() => !MotionCull.IsFreezing;
+			// TreeLog SetPosition/SetRotation call IncreaseDataRevision — blocking it leaves
+			// the server pose updated but DataRevision unchanged, so clients never catch up.
+			static bool Prefix(ZDO __instance)
+			{
+				if (!MotionCull.IsFreezing) return true;
+				if (MotionCull.IsTreeLogPrefab(__instance.GetPrefab())) return true;
+				return false;
+			}
 		}
 
 		[HarmonyPatch(typeof(ZSyncTransform), nameof(ZSyncTransform.CustomLateUpdate))]
@@ -225,6 +232,7 @@ namespace Valheim_Serverside.Features
 				{
 					forcing = true;
 					MotionCull.Force++;
+					MotionCull.ForceSendHot(___m_nview);
 					return;
 				}
 				float rate = Mathf.Max(4f, Configuration.motionCullPhysicsHz.Value);
@@ -238,6 +246,20 @@ namespace Valheim_Serverside.Features
 			{
 				if (freezing) { freezing = false; MotionCull.Freeze--; }
 				if (forcing) { forcing = false; MotionCull.Force--; }
+			}
+		}
+
+		/// <summary>Promote falling logs to Prioritized so TopK / relay treat them like creatures.</summary>
+		[HarmonyPatch(typeof(TreeLog), "Awake")]
+		public static class TreeLog_Prioritize
+		{
+			static void Postfix(TreeLog __instance, ZNetView ___m_nview)
+			{
+				if (___m_nview == null || !___m_nview.IsValid()) return;
+				ZDO zdo = ___m_nview.GetZDO();
+				if (zdo == null || !zdo.IsValid() || !zdo.IsOwner()) return;
+				if (zdo.Type != ZDO.ObjectType.Prioritized)
+					zdo.SetType(ZDO.ObjectType.Prioritized);
 			}
 		}
 
@@ -395,7 +417,8 @@ namespace Valheim_Serverside.Features
 				if (minMs <= 0 || z == null) return false;
 				if (z.Type == ZDO.ObjectType.Prioritized) return false;
 				if (z.GetOwner() == peer.m_peer.m_uid) return false;
-				// TreeLog / tumbling rigidbodies must not sit behind the 200 ms relay cap (~5 Hz).
+				// Prefab check — no FindInstance required (works the frame a log is spawned).
+				if (MotionCull.IsTreeLogPrefab(z.GetPrefab())) return false;
 				if (MotionCull.IsHotZdo(z)) return false;
 				if (!peer.m_zdos.TryGetValue(z.m_uid, out var info)) return false;
 				return (Time.time - info.m_syncTime) * 1000f < minMs;
@@ -450,6 +473,8 @@ namespace Valheim_Serverside.Features
 		{
 			private static double netTime;
 			private static float lastDt = 0.01f;
+			private static float nextForceSend;
+			private static readonly Dictionary<int, bool> treeLogPrefabCache = new Dictionary<int, bool>();
 			internal static int Freeze;
 			internal static int Force;
 
@@ -484,6 +509,16 @@ namespace Valheim_Serverside.Features
 				return Mathf.RoundToInt((float)(baseT * rateHz)) != Mathf.RoundToInt((float)(next * rateHz));
 			}
 
+			internal static bool IsTreeLogPrefab(int prefabHash)
+			{
+				if (prefabHash == 0 || !ZNetScene.instance) return false;
+				if (treeLogPrefabCache.TryGetValue(prefabHash, out bool cached)) return cached;
+				GameObject go = ZNetScene.instance.GetPrefab(prefabHash);
+				bool isLog = go && go.GetComponent<TreeLog>() != null;
+				treeLogPrefabCache[prefabHash] = isLog;
+				return isLog;
+			}
+
 			/// <summary>
 			/// Non-kinematic rigidbodies that are still moving (TreeLog fall, timber, ore chunks).
 			/// Skip MotionCull / relay throttle so clients see smooth physics.
@@ -501,10 +536,10 @@ namespace Valheim_Serverside.Features
 
 			internal static bool IsHotPhysics(ZSyncTransform sync, ZNetView view)
 			{
-				if (view)
+				if (view && view.IsValid())
 				{
-					TreeLog log = view.GetComponent<TreeLog>();
-					if (log)
+					// Any TreeLog with a live non-kinematic body — don't wait on velocity thresholds.
+					if (view.GetComponent<TreeLog>() || IsTreeLogPrefab(view.GetZDO().GetPrefab()))
 					{
 						Rigidbody body = view.GetComponent<Rigidbody>();
 						if (body && !body.isKinematic && !body.IsSleeping()) return true;
@@ -515,10 +550,32 @@ namespace Valheim_Serverside.Features
 
 			internal static bool IsHotZdo(ZDO z)
 			{
-				if (z == null || !ZNetScene.instance) return false;
+				if (z == null) return false;
+				if (IsTreeLogPrefab(z.GetPrefab())) return true;
+				if (!ZNetScene.instance) return false;
 				ZNetView view = ZNetScene.instance.FindInstance(z);
 				if (!view) return false;
 				return IsHotPhysics(view.GetComponent<ZSyncTransform>(), view);
+			}
+
+			/// <summary>Push tumbling logs into the next send even if DirtySets/TopK would delay them.</summary>
+			internal static void ForceSendHot(ZNetView view)
+			{
+				if (view == null || !view.IsValid() || ZDOMan.instance == null || ZNet.instance == null) return;
+				float now = Time.time;
+				if (now < nextForceSend) return;
+				nextForceSend = now + 0.05f; // 20 Hz force-send budget shared across hot logs
+				ZDO zdo = view.GetZDO();
+				if (zdo == null || !zdo.IsValid()) return;
+				ZDOMan.instance.ForceSendZDO(zdo.m_uid);
+				List<ZNetPeer> peers = ZNet.instance.GetPeers();
+				if (peers == null) return;
+				for (int i = 0; i < peers.Count; i++)
+				{
+					ZNetPeer peer = peers[i];
+					if (peer == null || !peer.IsReady()) continue;
+					ZDOMan.instance.ForceSendZDO(peer.m_uid, zdo.m_uid);
+				}
 			}
 		}
 	}

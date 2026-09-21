@@ -161,8 +161,27 @@ static class Program
         TargetFpsVerifier.Tick(105);
         ZNet.Peers.Clear(); TargetFpsVerifier.Tick(106);
         Check(Application.targetFrameRate == 30, "Empty server did not lower cap immediately");
-        ZNet.Peers.Add(1); TargetFpsVerifier.Tick(107);
+		ZNet.Peers.Add(1); TargetFpsVerifier.Tick(107);
         Check(Application.targetFrameRate == 60, "Joining peer did not immediately restore cap");
+
+        // Guard rails: tree-fall sync must never leave these holes open again.
+        string syncSrc = null;
+        foreach (var candidate in new[]
+        {
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src/Valheim_Serverside/Features/Sync.cs")),
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "../../../../src/Valheim_Serverside/Features/Sync.cs")),
+            "/Users/ash/Projects/valheim-serverside/src/Valheim_Serverside/Features/Sync.cs",
+        })
+        {
+            if (System.IO.File.Exists(candidate)) { syncSrc = System.IO.File.ReadAllText(candidate); break; }
+        }
+        Check(syncSrc != null, "Sync.cs not found for tree-fall guard rails");
+        Check(syncSrc.Contains("TreeLog_Prioritize"), "TreeLog Prioritized promotion missing");
+        Check(syncSrc.Contains("IsTreeLogPrefab"), "TreeLog prefab relay exemption missing");
+        Check(syncSrc.Contains("ForceSendHot"), "TreeLog ForceSend while tumbling missing");
+        Check(syncSrc.Contains("IsTreeLogPrefab(__instance.GetPrefab())"), "IncreaseDataRevision must never freeze TreeLog");
+        Check(!syncSrc.Contains("static bool Prefix() => !MotionCull.IsFreezing;"), "Blind IncreaseDataRevision freeze returned");
+
         Console.WriteLine($"Passed {checks} hardening assertions.");
     }
 }

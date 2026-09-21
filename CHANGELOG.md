@@ -1,3 +1,10 @@
+## 1.11.7 — Tree fall sync hardened
+
+- TreeLogs promote to **Prioritized** on Awake (TopK + relay treat them like creatures).
+- Prefab-based relay exemption (no FindInstance race on spawn frame).
+- `IncreaseDataRevision` never frozen for TreeLog — that was silently dropping SetPosition/SetRotation sync.
+- Force-send tumbling logs ~20 Hz so DirtySets/TopK cannot delay them.
+
 ## 1.11.6 — Tree fall sync (relay + cull)
 
 - Falling `TreeLog`s were still janky because `RelayMinIntervalMs` (200) capped non-prioritised ZDOs at ~5 Hz even after MotionCull exemption.
