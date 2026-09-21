@@ -63,6 +63,17 @@ namespace PluginConfiguration
 		public static ConfigEntry<string> adminChatPrefix;
 		public static ConfigEntry<int> adminChatMaxGive;
 
+		public static ConfigEntry<bool> qolEnabled;
+		public static ConfigEntry<bool> qolMagnetPickup;
+		public static ConfigEntry<float> qolMagnetRadius;
+		public static ConfigEntry<float> qolMagnetStep;
+		public static ConfigEntry<bool> qolInstantLoot;
+		public static ConfigEntry<float> qolInstantLootRange;
+		public static ConfigEntry<bool> qolStructureRepair;
+		public static ConfigEntry<float> qolStationRange;
+		public static ConfigEntry<float> qolCarryWeightRate;
+		public static ConfigEntry<bool> qolNoDurabilityNearStation;
+
 		public static void Load(ConfigFile config)
 		{
 			productionEnabled = config.Bind("Production", "Enabled", true, "Raid starts/spawns require a real nearby player, and optionally advance world time while empty. Does not keep bases loaded (that pulled in nearby dungeons). Requires restart.");
@@ -210,6 +221,27 @@ namespace PluginConfiguration
 				"What a chat message must start with to count as a command.");
 			adminChatMaxGive = config.Bind<int>("AdminChat", "MaxGiveAmount", 1000,
 				"Most items one give may drop, in chat or on the console.");
+
+			qolEnabled = config.Bind("QoL", "Enabled", true,
+				"Server-forced QoL for vanilla/console clients (magnet pickup, instant loot, structure repair near stations, carry-weight and near-bench durability via personalized GlobalKeys). Needs restart.");
+			qolMagnetPickup = config.Bind("QoL", "MagnetPickup", true,
+				"Pull ground ItemDrops toward players until they enter the vanilla auto-pickup bubble. No client mod.");
+			qolMagnetRadius = config.Bind("QoL", "MagnetRadius", 8f,
+				new ConfigDescription("Metres within which drops slide toward a player.", new AcceptableValueRange<float>(3f, 30f)));
+			qolMagnetStep = config.Bind("QoL", "MagnetStep", 2f,
+				new ConfigDescription("Metres moved per magnet tick (~4/s).", new AcceptableValueRange<float>(0.5f, 5f)));
+			qolInstantLoot = config.Bind("QoL", "InstantLoot", true,
+				"Spawn monster loot at the closest player's feet instead of the corpse. Vanilla auto-pickup / magnet finish the grab.");
+			qolInstantLootRange = config.Bind("QoL", "InstantLootRange", 64f,
+				new ConfigDescription("Max metres to the killer/player when redirecting loot.", new AcceptableValueRange<float>(8f, 128f)));
+			qolStructureRepair = config.Bind("QoL", "StructureRepair", true,
+				"Auto-repair WearNTear pieces near a crafting station (workbench/forge/etc.).");
+			qolStationRange = config.Bind("QoL", "StationRange", 20f,
+				new ConfigDescription("Metres around a crafting station for structure repair and no-durability-gear zone.", new AcceptableValueRange<float>(5f, 64f)));
+			qolCarryWeightRate = config.Bind("QoL", "CarryWeightRate", 1f,
+				new ConfigDescription("Per-player carry capacity multiplier via GlobalKeys.CarryWeightRate (1 = vanilla). Spoofed only to connected clients. Try 1.5–2 for backpack-like capacity without ExtraSlots.", new AcceptableValueRange<float>(0.5f, 5f)));
+			qolNoDurabilityNearStation = config.Bind("QoL", "NoDurabilityNearStation", true,
+				"While standing near a crafting station, set DurabilityRate to 0 for that player (gear does not wear — feels like auto-repair).");
 		}
 	}
 }

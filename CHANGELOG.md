@@ -1,3 +1,9 @@
+## 1.11.0 — Server-forced QoL (vanilla clients)
+
+- New `[QoL]` section (on by default): magnet pickup, instant loot at the killer's feet, structure auto-repair near crafting stations, personalized GlobalKeys for carry weight and near-bench durability (gear does not wear while at a station).
+- No client mods. Console / vanilla PC compatible.
+- Craft-from-chests and ExtraSlots remain out of scope (crafting emits no RPCs; hotbar is client UI). Use ServersideQoL AutoStore/Backpack for storage QoL.
+
 ## 1.10.15 — PortalProgression compatibility
 
 - Treat ServersideQoL **PortalProgression** as compatible with the portal hall (boss-gated ore/metal teleport). Only **AutoPortalHub** is warned as a pairing rival.

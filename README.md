@@ -6,9 +6,12 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.15**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.11.0**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.11.0 — Server-forced QoL
+Vanilla/console-safe magnet pickup, instant loot, structure repair near stations, and per-player carry / near-bench durability via personalized GlobalKeys (`[QoL]`, on by default).
 
 ### 1.10.15 — PortalProgression compatibility
 Keep ServersideQoL **PortalProgression** for boss-gated portal cargo. Northwatch only replaces **AutoPortalHub** pairing; hall teleports still honour vanilla `IsTeleportable` so progression stripping works.
@@ -401,6 +404,8 @@ A raid can start/spawn only with a connected character in its configured event r
 | `[Production] Enabled` | true | Raid start/spawn guards; does not keep bases loaded; restart required. |
 | `[Production] AdvanceTimeWhenEmpty` | true | World time, including day/weather, advances with no players. No offline catch-up. |
 | `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. Remove AutoPortalHub; keep PortalProgression. |
+| `[QoL] Enabled` | true | Magnet pickup, instant loot, structure repair near stations, personalized carry / near-bench durability. Vanilla clients. |
+| `[QoL] CarryWeightRate` | 1 | Carry capacity multiplier (try 1.5–2). |
 | `[PortalHub] Include` / `Exclude` | `*` / empty | Wildcard filters on portal tags. |
 | `[PortalHub] AutoNameNewPortals` | false | Name empty tags using AutoNameFormat before pairing. |
 | `[PortalHub] AutoNameFormat` | `{0} {1:D2}` | `{0}`=biome name, `{1}`=unique integer. |
