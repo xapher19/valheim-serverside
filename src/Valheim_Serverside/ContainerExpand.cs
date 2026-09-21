@@ -15,9 +15,11 @@ namespace Valheim_Serverside
 	{
 		internal const string MarkerKey = "nw_extra_rows";
 		private static readonly int MarkerHash = MarkerKey.GetStableHashCode();
+		private static readonly HashSet<ZDOID> checkedIds = new HashSet<ZDOID>();
 		private static MethodInfo saveMethod;
 		private static double nextScan;
 		private static int expanded;
+		private static bool scanExhausted;
 
 		internal static bool Enabled =>
 			QoLRuntime.Installed && Configuration.qolEnabled.Value && Configuration.qolChestExtraRows.Value > 0;
@@ -26,17 +28,27 @@ namespace Valheim_Serverside
 
 		internal static void Tick()
 		{
-			if (!Enabled || ZNetScene.instance == null || ZDOMan.instance == null) return;
+			if (!Enabled || scanExhausted || ZNetScene.instance == null || ZDOMan.instance == null) return;
 			double now = Time.realtimeSinceStartupAsDouble;
 			if (now < nextScan) return;
-			nextScan = now + 5;
-			// Catch chests that loaded before the feature was on / missed Awake postfix.
+			nextScan = now + 15;
+			// One slow pass for chests that loaded before the Awake postfix; then stop.
 			Container[] all = UnityEngine.Object.FindObjectsByType<Container>(FindObjectsSortMode.None);
-			int budget = 8;
-			for (int i = 0; i < all.Length && budget > 0; i++)
+			int budget = 4;
+			int pending = 0;
+			for (int i = 0; i < all.Length; i++)
 			{
-				if (TryExpand(all[i], recreate: true)) budget--;
+				Container c = all[i];
+				if (!c || !c.m_nview || !c.m_nview.IsValid()) continue;
+				ZDOID id = c.m_nview.GetZDO().m_uid;
+				if (checkedIds.Contains(id)) continue;
+				pending++;
+				if (budget <= 0) continue;
+				checkedIds.Add(id);
+				if (TryExpand(c, recreate: true)) budget--;
+				else budget--; // still count toward budget so we don't stall a frame
 			}
+			if (pending == 0) scanExhausted = true;
 		}
 
 		internal static bool TryExpand(Container container, bool recreate)

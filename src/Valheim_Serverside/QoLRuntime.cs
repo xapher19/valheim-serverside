@@ -65,7 +65,8 @@ namespace Valheim_Serverside
 			float radiusSq = radius * radius;
 			const float vanillaPickup = 2f;
 			float vanillaSq = vanillaPickup * vanillaPickup;
-			float step = Mathf.Clamp(Configuration.qolMagnetStep.Value, 0.5f, 5f);
+			// Soft pull — large steps + SetOwner fights look like low-FPS falling loot.
+			float step = Mathf.Clamp(Configuration.qolMagnetStep.Value, 0.25f, 1.5f);
 
 			List<ZNetPeer> peers = ZNet.instance.GetPeers();
 			if (peers == null || peers.Count == 0) return;
@@ -74,7 +75,6 @@ namespace Valheim_Serverside
 			List<ZDO>[] sectors = ZDOMan.instance.m_objectsBySector;
 			if (sectors == null) return;
 
-			// Only scan sectors near players (3×3 around each peer).
 			var sectorSet = new HashSet<int>();
 			for (int p = 0; p < peers.Count; p++)
 			{
@@ -103,10 +103,16 @@ namespace Valheim_Serverside
 				}
 			}
 
+			long serverId = ZDOMan.GetSessionID();
 			int moved = 0;
-			for (int i = 0; i < magnetCandidates.Count && moved < 32; i++)
+			for (int i = 0; i < magnetCandidates.Count && moved < 16; i++)
 			{
 				ZDO zdo = magnetCandidates[i];
+				long owner = zdo.GetOwner();
+				// Never steal from a connected player — that causes RequestOwn spam and physics hitching.
+				if (owner != 0L && owner != serverId && ZNet.instance.GetPeer(owner) != null)
+					continue;
+
 				Vector3 itemPos = zdo.GetPosition();
 				ZNetPeer closest = null;
 				float bestSq = radiusSq;
@@ -122,20 +128,46 @@ namespace Valheim_Serverside
 					}
 				}
 				if (closest == null) continue;
-				// Already inside vanilla AutoPickup bubble — leave it alone.
-				if (bestSq <= vanillaSq) continue;
 
-				Vector3 target = closest.GetRefPos() + Vector3.up * 0.25f;
+				// Inside vanilla auto-pickup: hand ownership to the player and stop moving.
+				if (bestSq <= vanillaSq)
+				{
+					if (owner != closest.m_uid)
+					{
+						zdo.SetOwner(closest.m_uid);
+						ZDOMan.instance.ForceSendZDO(closest.m_uid, zdo.m_uid);
+					}
+					continue;
+				}
+
+				// Only nudge server-owned drops. Skip freshly airborne loot (high above ground noise).
+				if (owner != 0L && owner != serverId) continue;
+
+				Vector3 target = closest.GetRefPos() + Vector3.up * 0.15f;
 				Vector3 delta = target - itemPos;
 				float dist = delta.magnitude;
-				if (dist < 0.05f) continue;
+				if (dist < 0.1f) continue;
 				Vector3 next = itemPos + delta * Mathf.Min(1f, step / dist);
-				// Keep server ownership so the move replicates.
-				if (zdo.GetOwner() != ZDOMan.GetSessionID())
-					zdo.SetOwner(ZDOMan.GetSessionID());
+				next.y = itemPos.y; // keep height — don't yank falling logs through the air
+				if (owner != serverId)
+					zdo.SetOwner(serverId);
 				zdo.SetPosition(next);
+				ZeroDropVelocity(zdo);
 				moved++;
 				magnetMoves++;
+			}
+		}
+
+		private static void ZeroDropVelocity(ZDO zdo)
+		{
+			if (!ZNetScene.instance) return;
+			ZNetView view = ZNetScene.instance.FindInstance(zdo);
+			if (!view) return;
+			Rigidbody body = view.GetComponent<Rigidbody>();
+			if (body)
+			{
+				body.velocity = Vector3.zero;
+				body.angularVelocity = Vector3.zero;
 			}
 		}
 

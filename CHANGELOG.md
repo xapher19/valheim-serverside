@@ -1,3 +1,9 @@
+## 1.11.2 — Magnet/pickup hitch fix
+
+- Magnet no longer steals ItemDrop ownership from connected players (was causing `wants to pickup` spam and floaty falling logs).
+- Magnet keeps horizontal pull only, zeros rigidbody velocity, softer step; **defaults off** (`MagnetPickup=false`). Existing configs must set `MagnetPickup = false` once.
+- Craft-from-chests defaults off; chest expand stops after one catch-up pass (no more full-scene `FindObjectsByType` every 5s).
+
 ## 1.11.1 — Backpack, craft-from-chests, taller chests
 
 - **ChestExtraRows** (default 1): every player-built chest gets +N inventory rows via HasFields (vanilla clients).
