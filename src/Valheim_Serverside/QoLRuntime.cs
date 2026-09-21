@@ -20,6 +20,9 @@ namespace Valheim_Serverside
 		private static int magnetMoves;
 		private static int repairs;
 		private static readonly List<ZDO> magnetCandidates = new List<ZDO>();
+		private static readonly Dictionary<ZDOID, double> magnetFirstSeen = new Dictionary<ZDOID, double>();
+		private static readonly List<ZDOID> magnetStale = new List<ZDOID>();
+		private static readonly HashSet<ZDOID> magnetHandedOff = new HashSet<ZDOID>();
 
 		internal static bool Enabled => Installed && Configuration.qolEnabled.Value;
 		internal static string Status
@@ -45,8 +48,8 @@ namespace Valheim_Serverside
 			double now = Time.realtimeSinceStartupAsDouble;
 			if (Configuration.qolMagnetPickup.Value && now >= nextMagnet)
 			{
-				nextMagnet = now + 0.25;
-				TickMagnet();
+				nextMagnet = now + 0.35;
+				TickMagnet(now);
 			}
 			if (Configuration.qolStructureRepair.Value && now >= nextRepair)
 			{
@@ -59,14 +62,16 @@ namespace Valheim_Serverside
 			CraftFromChests.Tick();
 		}
 
-		private static void TickMagnet()
+		private static void TickMagnet(double now)
 		{
 			float radius = Mathf.Max(2.5f, Configuration.qolMagnetRadius.Value);
 			float radiusSq = radius * radius;
 			const float vanillaPickup = 2f;
 			float vanillaSq = vanillaPickup * vanillaPickup;
-			// Soft pull — large steps + SetOwner fights look like low-FPS falling loot.
-			float step = Mathf.Clamp(Configuration.qolMagnetStep.Value, 0.25f, 1.5f);
+			float step = Mathf.Clamp(Configuration.qolMagnetStep.Value, 0.25f, 1.25f);
+			float settle = Mathf.Max(0.5f, Configuration.qolMagnetSettleSeconds.Value);
+			float maxSpeed = Mathf.Max(0.1f, Configuration.qolMagnetMaxSpeed.Value);
+			float maxSpeedSq = maxSpeed * maxSpeed;
 
 			List<ZNetPeer> peers = ZNet.instance.GetPeers();
 			if (peers == null || peers.Count == 0) return;
@@ -76,6 +81,7 @@ namespace Valheim_Serverside
 			if (sectors == null) return;
 
 			var sectorSet = new HashSet<int>();
+			var live = new HashSet<ZDOID>();
 			for (int p = 0; p < peers.Count; p++)
 			{
 				ZNetPeer peer = peers[p];
@@ -99,19 +105,43 @@ namespace Valheim_Serverside
 					ZDO zdo = bucket[i];
 					if (zdo == null || !zdo.IsValid()) continue;
 					if (!IsItemDropPrefab(zdo.GetPrefab())) continue;
+					live.Add(zdo.m_uid);
+					if (!magnetFirstSeen.ContainsKey(zdo.m_uid))
+						magnetFirstSeen[zdo.m_uid] = now;
 					magnetCandidates.Add(zdo);
 				}
 			}
 
+			magnetStale.Clear();
+			foreach (ZDOID id in magnetFirstSeen.Keys)
+				if (!live.Contains(id)) magnetStale.Add(id);
+			foreach (ZDOID id in magnetStale)
+			{
+				magnetFirstSeen.Remove(id);
+				magnetHandedOff.Remove(id);
+			}
+
 			long serverId = ZDOMan.GetSessionID();
 			int moved = 0;
-			for (int i = 0; i < magnetCandidates.Count && moved < 16; i++)
+			for (int i = 0; i < magnetCandidates.Count && moved < 12; i++)
 			{
 				ZDO zdo = magnetCandidates[i];
 				long owner = zdo.GetOwner();
-				// Never steal from a connected player — that causes RequestOwn spam and physics hitching.
+				// Never steal from a connected player.
 				if (owner != 0L && owner != serverId && ZNet.instance.GetPeer(owner) != null)
 					continue;
+
+				// Let chop/mine loot finish falling before we touch it.
+				if (!magnetFirstSeen.TryGetValue(zdo.m_uid, out double seen) || now - seen < settle)
+					continue;
+
+				ItemDrop drop = DropOf(zdo);
+				if (drop == null || !drop.m_autoPickup) continue;
+				try { if (drop.IsPiece()) continue; } catch { }
+
+				Rigidbody body = drop.GetComponent<Rigidbody>();
+				if (body && !body.isKinematic && body.linearVelocity.sqrMagnitude > maxSpeedSq)
+					continue; // still tumbling — leave physics alone
 
 				Vector3 itemPos = zdo.GetPosition();
 				ZNetPeer closest = null;
@@ -129,46 +159,60 @@ namespace Valheim_Serverside
 				}
 				if (closest == null) continue;
 
-				// Inside vanilla auto-pickup: hand ownership to the player and stop moving.
+				// Inside vanilla auto-pickup: hand off once, stop magneting this drop.
 				if (bestSq <= vanillaSq)
 				{
-					if (owner != closest.m_uid)
+					if (magnetHandedOff.Add(zdo.m_uid) || owner != closest.m_uid)
 					{
+						if (body) body.isKinematic = false;
 						zdo.SetOwner(closest.m_uid);
 						ZDOMan.instance.ForceSendZDO(closest.m_uid, zdo.m_uid);
 					}
 					continue;
 				}
 
-				// Only nudge server-owned drops. Skip freshly airborne loot (high above ground noise).
 				if (owner != 0L && owner != serverId) continue;
+				if (magnetHandedOff.Contains(zdo.m_uid)) continue;
 
-				Vector3 target = closest.GetRefPos() + Vector3.up * 0.15f;
+				Vector3 target = closest.GetRefPos();
 				Vector3 delta = target - itemPos;
+				delta.y = 0f; // ground slide only
 				float dist = delta.magnitude;
-				if (dist < 0.1f) continue;
-				Vector3 next = itemPos + delta * Mathf.Min(1f, step / dist);
-				next.y = itemPos.y; // keep height — don't yank falling logs through the air
+				if (dist < 0.15f) continue;
+
 				if (owner != serverId)
 					zdo.SetOwner(serverId);
-				zdo.SetPosition(next);
-				ZeroDropVelocity(zdo);
+
+				// Prefer physics slide over hard teleports when we have a live body.
+				if (body)
+				{
+					body.isKinematic = false;
+					Vector3 dir = delta / dist;
+					float pull = Mathf.Min(step / 0.35f, 4f); // m/s toward player
+					Vector3 v = body.linearVelocity;
+					v.x = dir.x * pull;
+					v.z = dir.z * pull;
+					// Dampen vertical bounce while sliding.
+					if (v.y > 0f) v.y *= 0.5f;
+					body.linearVelocity = v;
+					body.angularVelocity *= 0.5f;
+				}
+				else
+				{
+					Vector3 next = itemPos + delta * Mathf.Min(1f, step / dist);
+					next.y = itemPos.y;
+					zdo.SetPosition(next);
+				}
 				moved++;
 				magnetMoves++;
 			}
 		}
 
-		private static void ZeroDropVelocity(ZDO zdo)
+		private static ItemDrop DropOf(ZDO zdo)
 		{
-			if (!ZNetScene.instance) return;
+			if (!ZNetScene.instance) return null;
 			ZNetView view = ZNetScene.instance.FindInstance(zdo);
-			if (!view) return;
-			Rigidbody body = view.GetComponent<Rigidbody>();
-			if (body)
-			{
-				body.linearVelocity = Vector3.zero;
-				body.angularVelocity = Vector3.zero;
-			}
+			return view ? view.GetComponent<ItemDrop>() : null;
 		}
 
 		private static void TickStructureRepair()

@@ -1,3 +1,9 @@
+## 1.11.3 — Magnet that stays on
+
+- Magnet waits for loot to settle (`MagnetSettleSeconds`, default 1.5s) and skips rigidbodies still moving faster than `MagnetMaxSpeed`.
+- Pulls with physics velocity (ground slide) instead of hard teleports; hands ownership to the player once inside the 2 m bubble and stops touching that drop.
+- Still never steals ownership from a connected player. Default `MagnetPickup=true` again.
+
 ## 1.11.2 — Magnet/pickup hitch fix
 
 - Magnet no longer steals ItemDrop ownership from connected players (was causing `wants to pickup` spam and floaty falling logs).

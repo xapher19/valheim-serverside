@@ -67,6 +67,8 @@ namespace PluginConfiguration
 		public static ConfigEntry<bool> qolMagnetPickup;
 		public static ConfigEntry<float> qolMagnetRadius;
 		public static ConfigEntry<float> qolMagnetStep;
+		public static ConfigEntry<float> qolMagnetSettleSeconds;
+		public static ConfigEntry<float> qolMagnetMaxSpeed;
 		public static ConfigEntry<bool> qolInstantLoot;
 		public static ConfigEntry<float> qolInstantLootRange;
 		public static ConfigEntry<bool> qolStructureRepair;
@@ -231,12 +233,16 @@ namespace PluginConfiguration
 
 			qolEnabled = config.Bind("QoL", "Enabled", true,
 				"Server-forced QoL for vanilla/console clients (magnet pickup, instant loot, structure repair near stations, carry-weight and near-bench durability via personalized GlobalKeys). Needs restart.");
-			qolMagnetPickup = config.Bind("QoL", "MagnetPickup", false,
-				"Pull ground ItemDrops toward players until they enter the vanilla auto-pickup bubble. Off by default — can fight client pickup ownership and make falling loot look hitchy. Safe with 1.11.2+ ownership rules.");
+			qolMagnetPickup = config.Bind("QoL", "MagnetPickup", true,
+				"Pull settled ground loot toward players, then hand ownership into the vanilla 2 m auto-pickup bubble. Skips airborne/falling items and never steals ownership from a connected player.");
 			qolMagnetRadius = config.Bind("QoL", "MagnetRadius", 6f,
-				new ConfigDescription("Metres within which drops slide toward a player.", new AcceptableValueRange<float>(3f, 30f)));
+				new ConfigDescription("Metres within which settled drops slide toward a player.", new AcceptableValueRange<float>(3f, 30f)));
 			qolMagnetStep = config.Bind("QoL", "MagnetStep", 0.75f,
-				new ConfigDescription("Metres moved per magnet tick (~4/s). Keep low to avoid floaty logs.", new AcceptableValueRange<float>(0.25f, 2f)));
+				new ConfigDescription("Pull strength per magnet tick (~3/s). Lower = gentler slide.", new AcceptableValueRange<float>(0.25f, 2f)));
+			qolMagnetSettleSeconds = config.Bind("QoL", "MagnetSettleSeconds", 1.5f,
+				new ConfigDescription("Seconds after a drop appears before magnet may touch it. Lets chopped wood finish falling.", new AcceptableValueRange<float>(0.5f, 5f)));
+			qolMagnetMaxSpeed = config.Bind("QoL", "MagnetMaxSpeed", 0.75f,
+				new ConfigDescription("Skip drops whose rigidbody is still moving faster than this (m/s). Prevents yanking tumbling logs.", new AcceptableValueRange<float>(0.1f, 5f)));
 			qolInstantLoot = config.Bind("QoL", "InstantLoot", true,
 				"Spawn monster loot at the closest player's feet instead of the corpse. Vanilla auto-pickup / magnet finish the grab.");
 			qolInstantLootRange = config.Bind("QoL", "InstantLootRange", 64f,
