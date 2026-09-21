@@ -27,7 +27,10 @@ namespace Valheim_Serverside
 			get
 			{
 				if (!Enabled) return "qol inactive";
-				return $"qol magnet {magnetMoves} repairs {repairs}";
+				string extra = ContainerExpand.Status;
+				if (!string.IsNullOrEmpty(BackpackRuntime.Status)) extra += " " + BackpackRuntime.Status;
+				if (!string.IsNullOrEmpty(CraftFromChests.Status)) extra += " " + CraftFromChests.Status;
+				return $"qol magnet {magnetMoves} repairs {repairs}" + (string.IsNullOrEmpty(extra) ? "" : " " + extra);
 			}
 		}
 
@@ -50,6 +53,10 @@ namespace Valheim_Serverside
 				nextRepair = now + 2;
 				TickStructureRepair();
 			}
+
+			ContainerExpand.Tick();
+			BackpackRuntime.Tick();
+			CraftFromChests.Tick();
 		}
 
 		private static void TickMagnet()

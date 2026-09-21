@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.11.0";
+		public const string PluginVersion = "1.11.1";
 
 		private static ServersidePlugin context;
 
@@ -101,7 +101,11 @@ namespace Valheim_Serverside
 			Features.TargetFpsVerifier.Start(Time.realtimeSinceStartupAsDouble);
 			Logger.LogInfo($"{PluginName} installed");
 			if (Configuration.qolEnabled.Value)
-				Logger.LogInfo("QoL enabled: magnet pickup, instant loot, structure repair near stations, carry-weight and near-bench durability (vanilla clients).");
+			{
+				Logger.LogInfo("QoL enabled: magnet pickup, instant loot, structure repair, carry/durability keys, chest +rows, backpack emote, craft-from-chests shuttle (vanilla clients).");
+				if (Configuration.qolBackpack.Value)
+					WarnBackpackConflict(Logger);
+			}
 			if (Configuration.portalHubEnabled.Value)
 			{
 				Logger.LogInfo("Portal hall enabled: leave one home portal untagged and walk through it to pick a labeled destination. Tagged world portals return home.");
@@ -109,6 +113,17 @@ namespace Valheim_Serverside
 			}
 			if (Configuration.allowEmptyPassword.Value)
 				Logger.LogInfo("AllowEmptyPassword enabled: public/crossplay may start with no password. Clear -password in the host panel if it still injects one.");
+		}
+
+		private static void WarnBackpackConflict(ManualLogSource log)
+		{
+			const string id = "ArgusMagnus.ServersideQoL.Backpack";
+			try
+			{
+				if (BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(id))
+					log.LogWarning($"QoL backpack: '{id}' is also loaded — disable one of them so emotes do not open two bags.");
+			}
+			catch { }
 		}
 
 		private static void WarnPortalHubConflicts(ManualLogSource log)

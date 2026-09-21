@@ -61,5 +61,15 @@ namespace Valheim_Serverside.Features
 				dropArea = 0.15f;
 			}
 		}
+
+		[HarmonyPatch(typeof(Container), "Awake")]
+		public static class ExpandPlayerChests
+		{
+			static void Postfix(Container __instance)
+			{
+				if (!ContainerExpand.Enabled) return;
+				ContainerExpand.TryExpand(__instance, recreate: true);
+			}
+		}
 	}
 }

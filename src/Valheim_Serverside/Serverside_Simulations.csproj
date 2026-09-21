@@ -138,6 +138,9 @@
     <Compile Include="Features\QoL.cs" />
     <Compile Include="PeerWorldKeys.cs" />
     <Compile Include="QoLRuntime.cs" />
+    <Compile Include="ContainerExpand.cs" />
+    <Compile Include="BackpackRuntime.cs" />
+    <Compile Include="CraftFromChests.cs" />
     <Compile Include="SequentialInstructions.cs" />
     <Compile Include="ServersidePlugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

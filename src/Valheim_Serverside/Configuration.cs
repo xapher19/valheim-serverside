@@ -73,6 +73,13 @@ namespace PluginConfiguration
 		public static ConfigEntry<float> qolStationRange;
 		public static ConfigEntry<float> qolCarryWeightRate;
 		public static ConfigEntry<bool> qolNoDurabilityNearStation;
+		public static ConfigEntry<int> qolChestExtraRows;
+		public static ConfigEntry<bool> qolBackpack;
+		public static ConfigEntry<string> qolBackpackEmote;
+		public static ConfigEntry<int> qolBackpackSlots;
+		public static ConfigEntry<bool> qolCraftFromChests;
+		public static ConfigEntry<float> qolCraftChestRange;
+		public static ConfigEntry<int> qolCraftMaxItems;
 
 		public static void Load(ConfigFile config)
 		{
@@ -242,6 +249,20 @@ namespace PluginConfiguration
 				new ConfigDescription("Per-player carry capacity multiplier via GlobalKeys.CarryWeightRate (1 = vanilla). Spoofed only to connected clients. Try 1.5–2 for backpack-like capacity without ExtraSlots.", new AcceptableValueRange<float>(0.5f, 5f)));
 			qolNoDurabilityNearStation = config.Bind("QoL", "NoDurabilityNearStation", true,
 				"While standing near a crafting station, set DurabilityRate to 0 for that player (gear does not wear — feels like auto-repair).");
+			qolChestExtraRows = config.Bind("QoL", "ChestExtraRows", 1,
+				new ConfigDescription("Extra inventory rows added to every player-built chest/container (not dungeon chests). Applied via HasFields so vanilla clients see the taller UI.", new AcceptableValueRange<int>(0, 6)));
+			qolBackpack = config.Bind("QoL", "Backpack", true,
+				"Emote-opens a persistent private-chest backpack (vanilla OpenResponse). Disable ServersideQoL.Backpack if both are installed.");
+			qolBackpackEmote = config.Bind("QoL", "BackpackEmote", "Wave",
+				"Emote name that opens the backpack (Wave, Sit, Cheer, …). Use * for any emote. Console: /bind JoystickButton3 Wave");
+			qolBackpackSlots = config.Bind("QoL", "BackpackSlots", 8,
+				new ConfigDescription("Backpack inventory slots (arranged as 4×N).", new AcceptableValueRange<int>(4, 32)));
+			qolCraftFromChests = config.Bind("QoL", "CraftFromChests", true,
+				"While near a crafting station, temporarily pull items from nearby player chests into your inventory so you can craft/build; leftovers return when you leave. Approximation — not client craft-from-chest UI.");
+			qolCraftChestRange = config.Bind("QoL", "CraftChestRange", 20f,
+				new ConfigDescription("Metres around the player to pull chest materials from while at a station.", new AcceptableValueRange<float>(5f, 40f)));
+			qolCraftMaxItems = config.Bind("QoL", "CraftMaxItems", 40,
+				new ConfigDescription("Max item stacks moved from chests per station visit.", new AcceptableValueRange<int>(8, 100)));
 		}
 	}
 }

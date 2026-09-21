@@ -102,6 +102,7 @@ namespace PluginConfiguration
         public static Setting<bool> portalHubEnabled = new(true);
         public static Setting<bool> allowEmptyPassword = new(false);
         public static Setting<bool> qolEnabled = new(true);
+        public static Setting<bool> qolBackpack = new(true);
         public static void Load(object c) { }
     }
 }

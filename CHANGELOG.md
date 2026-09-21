@@ -1,3 +1,9 @@
+## 1.11.1 — Backpack, craft-from-chests, taller chests
+
+- **ChestExtraRows** (default 1): every player-built chest gets +N inventory rows via HasFields (vanilla clients).
+- **Backpack**: Wave emote opens a persistent private-chest backpack (`BackpackSlots`, default 8). Disable ServersideQoL.Backpack if both are loaded.
+- **CraftFromChests**: standing at a crafting station temporarily pulls nearby chest materials into your inventory; leftovers return when you walk away (materials shuttle — not Azu UI parity).
+
 ## 1.11.0 — Server-forced QoL (vanilla clients)
 
 - New `[QoL]` section (on by default): magnet pickup, instant loot at the killer's feet, structure auto-repair near crafting stations, personalized GlobalKeys for carry weight and near-bench durability (gear does not wear while at a station).

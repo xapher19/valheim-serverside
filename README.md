@@ -6,9 +6,12 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.11.0**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.11.1**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.11.1 — Backpack, craft-from-chests, taller chests
+Emote backpack, station materials shuttle from nearby chests, and +1 row on player-built chests — all vanilla/console clients.
 
 ### 1.11.0 — Server-forced QoL
 Vanilla/console-safe magnet pickup, instant loot, structure repair near stations, and per-player carry / near-bench durability via personalized GlobalKeys (`[QoL]`, on by default).
@@ -405,6 +408,9 @@ A raid can start/spawn only with a connected character in its configured event r
 | `[Production] AdvanceTimeWhenEmpty` | true | World time, including day/weather, advances with no players. No offline catch-up. |
 | `[PortalHub] Enabled` | true | Leave one home portal untagged and walk through it to pick a labeled destination. Name outposts; tagged world portals return home. Remove AutoPortalHub; keep PortalProgression. |
 | `[QoL] Enabled` | true | Magnet pickup, instant loot, structure repair near stations, personalized carry / near-bench durability. Vanilla clients. |
+| `[QoL] ChestExtraRows` | 1 | Extra rows on player-built chests. |
+| `[QoL] Backpack` | true | Wave emote opens a private-chest backpack. |
+| `[QoL] CraftFromChests` | true | At a station, pull nearby chest mats into inventory; return leftovers on leave. |
 | `[QoL] CarryWeightRate` | 1 | Carry capacity multiplier (try 1.5–2). |
 | `[PortalHub] Include` / `Exclude` | `*` / empty | Wildcard filters on portal tags. |
 | `[PortalHub] AutoNameNewPortals` | false | Name empty tags using AutoNameFormat before pairing. |
