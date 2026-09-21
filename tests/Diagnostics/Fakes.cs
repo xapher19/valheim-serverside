@@ -29,6 +29,7 @@ namespace Valheim_Serverside {
 internal static class ProductionAreas { internal static string Status => "production inactive"; }
 internal static class PortalHub { internal static string Status => "portal hub inactive"; }
 internal static class FloraItemPlanting { internal static string Status => "item planting inactive"; }
+internal static class QoLRuntime { internal static string Status => "qol inactive"; }
 internal static class ServerFeedback { internal static string Status => "no save result observed"; }
  public class Logger { public List<string> Messages = new(); public void LogInfo(object m) => Messages.Add(m.ToString()); public void LogWarning(object m) => Messages.Add(m.ToString()); }
  public static class ServersidePlugin { public const string PluginGUID = "test", PluginName = "Northwatch Dedicated Simulation", PluginVersion = "1.9.4"; public static Logger logger = new(); }

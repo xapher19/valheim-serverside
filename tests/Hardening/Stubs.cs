@@ -101,6 +101,7 @@ namespace PluginConfiguration
         public static Setting<bool> modEnabled = new(true), consoleCommandsEnabled = new(false), adminChatEnabled = new(false);
         public static Setting<bool> portalHubEnabled = new(true);
         public static Setting<bool> allowEmptyPassword = new(false);
+        public static Setting<bool> qolEnabled = new(true);
         public static void Load(object c) { }
     }
 }
@@ -116,6 +117,7 @@ namespace Valheim_Serverside
     internal static class ProductionAreas { internal static bool Installed; internal static void Tick() {} }
     internal static class PortalHub { internal static bool Installed; internal static void Tick() {} internal static string Status => "portal hub inactive"; }
     internal static class FloraItemPlanting { internal static bool Installed; internal static void Tick() {} internal static string Status => "item planting inactive"; }
+    internal static class QoLRuntime { internal static bool Installed; internal static void Tick() {} internal static string Status => "qol inactive"; }
     internal static class ServerFeedback { internal static bool Installed; internal static void Tick() {} }
     public static class ServerConsole { public static void Start() { } public static void ProcessPending() { } }
     internal static class DiagnosticRuntime { internal static bool Installed; internal static void Initialize() { } internal static void HookState(Type t, string s) {} internal static void Rollback() {} internal static void Tick() { } }
@@ -143,6 +145,7 @@ namespace Valheim_Serverside.Features
     public class PortalHubHooks : MaxObjectsPerFrame { }
     public class SaveFeedback : MaxObjectsPerFrame { }
     public class InteractionReliability : MaxObjectsPerFrame { }
+    public class QoL : MaxObjectsPerFrame { }
     public class AdminChat : MaxObjectsPerFrame { public static void Tick() { } }
     public class Fixes : MaxObjectsPerFrame { }
     public class Debugging : MaxObjectsPerFrame { }
