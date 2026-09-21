@@ -68,20 +68,22 @@ namespace Valheim_Serverside
 				long creator = FarmingSupport.CreatorAt(zdo.GetPosition(), out ZNetPeer peer);
 				if (stack < cost)
 				{
-					WarnOnce(zdo, peer, "Need " + cost + " to plant (this drop has " + stack + ").");
+					// Leftover single harvest items on cultivated ground are common; only tell a
+					// nearby player once, and do not spam the server log on empty boots.
+					if (peer != null) WarnOnce(zdo, peer, "Need " + cost + " to plant (this drop has " + stack + ").", logServer: false);
 					continue;
 				}
 				int n = FarmingSupport.TryPlantFromDrop(zdo, stack, cultivated, creator, out string message);
 				if (n <= 0)
 				{
-					WarnOnce(zdo, peer, message);
+					if (peer != null) WarnOnce(zdo, peer, message, logServer: true);
 					continue;
 				}
 				plantedDrops++;
 				plantsThisSession += n;
 				firstSeen.Remove(zdo.m_uid);
 				warned.Remove(zdo.m_uid);
-				if (message != null) Notify(peer, message);
+				if (message != null) Notify(peer, message, logServer: true);
 			}
 		}
 
@@ -101,13 +103,13 @@ namespace Valheim_Serverside
 			return view ? view.GetComponent<ItemDrop>() : null;
 		}
 
-		private static void WarnOnce(ZDO zdo, ZNetPeer peer, string message)
+		private static void WarnOnce(ZDO zdo, ZNetPeer peer, string message, bool logServer)
 		{
 			if (zdo == null || string.IsNullOrEmpty(message) || !warned.Add(zdo.m_uid)) return;
-			Notify(peer, message);
+			Notify(peer, message, logServer);
 		}
 
-		private static void Notify(ZNetPeer peer, string text)
+		private static void Notify(ZNetPeer peer, string text, bool logServer)
 		{
 			if (string.IsNullOrEmpty(text)) return;
 			try
@@ -121,7 +123,8 @@ namespace Valheim_Serverside
 				try { peer.m_rpc.Invoke("RemotePrint", "[server] " + text); }
 				catch (Exception) { }
 			}
-			ServersidePlugin.logger.LogInfo("Item planting: " + text);
+			if (logServer)
+				ServersidePlugin.logger.LogInfo("Item planting: " + text);
 		}
 	}
 }

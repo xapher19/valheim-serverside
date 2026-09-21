@@ -23,7 +23,7 @@ namespace Valheim_Serverside
 		// detect it by GUID still do and the two cannot be loaded side by side.
 		public const string PluginGUID = "MVP.Valheim_Serverside_Simulations";
 		public const string PluginName = "Northwatch Dedicated Simulation";
-		public const string PluginVersion = "1.10.13";
+		public const string PluginVersion = "1.10.14";
 
 		private static ServersidePlugin context;
 
@@ -99,9 +99,33 @@ namespace Valheim_Serverside
 			Features.TargetFpsVerifier.Start(Time.realtimeSinceStartupAsDouble);
 			Logger.LogInfo($"{PluginName} installed");
 			if (Configuration.portalHubEnabled.Value)
-				Logger.LogInfo("Portal hall enabled: leave one home portal untagged and walk through it to pick a labeled destination. Tagged world portals return home. Remove ServersideQoL AutoPortalHub if present.");
+			{
+				Logger.LogInfo("Portal hall enabled: leave one home portal untagged and walk through it to pick a labeled destination. Tagged world portals return home.");
+				WarnPortalHubConflicts(Logger);
+			}
 			if (Configuration.allowEmptyPassword.Value)
 				Logger.LogInfo("AllowEmptyPassword enabled: public/crossplay may start with no password. Clear -password in the host panel if it still injects one.");
+		}
+
+		private static void WarnPortalHubConflicts(ManualLogSource log)
+		{
+			string[] rivals =
+			{
+				"ArgusMagnus.ServersideQoL.AutoPortalHub",
+				"ArgusMagnus.ServersideQoL.PortalProgression",
+			};
+			foreach (string id in rivals)
+			{
+				try
+				{
+					if (!BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(id)) continue;
+				}
+				catch
+				{
+					return;
+				}
+				log.LogWarning($"Portal hall: '{id}' is also loaded and may fight Northwatch portal pairing. Remove that ServersideQoL plugin from BepInEx/plugins if the destination hall misbehaves.");
+			}
 		}
 
 		private static bool consoleStarted;

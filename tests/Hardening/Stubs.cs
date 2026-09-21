@@ -66,6 +66,13 @@ namespace BepInEx
         public BepInDependency(string s, DependencyFlags f) { }
     }
 }
+namespace BepInEx.Bootstrap
+{
+    public static class Chainloader
+    {
+        public static readonly Dictionary<string, object> PluginInfos = new();
+    }
+}
 namespace Unity.Jobs.LowLevel.Unsafe { public static class JobsUtility { public static int JobWorkerCount; } }
 namespace UnityEngine
 {

@@ -6,9 +6,13 @@
 
 The dedicated server simulates the world — monsters, physics, ships without a driver — instead of handing each area to whichever player got there first. **Server-side only: players keep vanilla clients.**
 
-Current custom build: **Northwatch 1.10.13**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
+Current custom build: **Northwatch 1.10.14**, compiled and hook-tested against Valheim **1.0.15**. The inherited drift fingerprints retain their original review baseline.
 
 ## Patch notes
+
+### 1.10.14 — Idle FPS and planting log noise
+
+- Empty servers keep `ServerTargetFps` by default (`IdleTargetFps` now 0). Quieter item-planting logs. Warn if ServersideQoL portal mods conflict with the hall.
 
 ### 1.10.13 — Sync/CPU reductions (server-only)
 
@@ -222,7 +226,7 @@ Clients need nothing.
 | `[Performance] MaxCatchUpMs` | 100 | Longest frame counted in full. After a slow frame Unity reruns physics and every creature's fixed update for each 20 ms missed (Valheim allows 200 ms, 10 times); 100 caps it at 5. Game time runs slightly slow during such frames. 0 keeps the game's setting. |
 | `[Performance] MaxZonesPerTick` | 1 | New zones generated per zone tick (10 per second), players taking turns. 0 = one per player per tick, as before. |
 | `[Performance] ServerTargetFps` | 60 | Frame rate the server aims for (the game sets 30). With time to spare a frame no longer waits 33 ms, so reactions to players halve; under load it changes nothing. 0 keeps 30. |
-| `[Performance] IdleTargetFps` | 30 | Empty-server frame cap (never above ServerTargetFps); 0 disables. Physics and production continue. |
+| `[Performance] IdleTargetFps` | 0 | Empty-server frame cap (never above ServerTargetFps); 0 keeps ServerTargetFps while empty. Try 30 to save CPU when nobody is online. |
 | `[Fixes] SaveClientChanges` | true | Count a change that arrives from a player as a change to its world chunk, so the next save writes it. Valheim 1.0 rewrites only changed chunks and skips those. |
 | `[AdminChat] Enabled` | false | Admins (adminlist.txt) can shout `/give <item> [amount]`, `/save` and `/help`; replies appear in their console (F5). The shout is visible to players nearby; the server console does the same without it. |
 | `[AdminChat] Prefix` / `MaxGiveAmount` | `/` / 1000 | Command prefix; most items one `/give` drops. |
@@ -409,7 +413,7 @@ A raid can start/spawn only with a connected character in its configured event r
 | `[MaxObjectsPerFrame] Adaptive` | true | Adjust creation allowance to measured cost and frame pressure. |
 | `[MaxObjectsPerFrame] BudgetMs` | 3 | Soft creation budget; individual operations cannot be interrupted. `MaxObjects` remains the ceiling. |
 | `[Performance] SendBudgetMs` | 3 | Soft scheduled-send budget per frame; 0 disables the budget. |
-| `[Performance] IdleTargetFps` | 30 | Empty-server cap, never above active target; 0 disables. Requires a positive `ServerTargetFps`. |
+| `[Performance] IdleTargetFps` | 0 | Empty-server cap, never above active target; 0 keeps ServerTargetFps. Requires a positive `ServerTargetFps`. |
 | `[Server] SaveAnnouncements` | true | Vanilla in-game save/result and console-shutdown messages. |
 | `[Server] AllowEmptyPassword` | false | Allow public/crossplay dedicated servers to start with no password. Clear `-password` in the host panel too. |
 
