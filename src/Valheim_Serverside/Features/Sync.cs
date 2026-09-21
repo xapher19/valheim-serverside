@@ -209,7 +209,7 @@ namespace Valheim_Serverside.Features
 			static bool Prefix(ZDO __instance)
 			{
 				if (!MotionCull.IsFreezing) return true;
-				if (MotionCull.IsTreeLogPrefab(__instance.GetPrefab())) return true;
+				if (MotionCull.IsCreaturePhysicsPrefab(__instance.GetPrefab())) return true;
 				return false;
 			}
 		}
@@ -227,12 +227,13 @@ namespace Valheim_Serverside.Features
 				if (!MotionCull.Active || ___m_nview == null || !___m_nview.IsValid()) return;
 				ZDO zdo = ___m_nview.GetZDO();
 				if (zdo.GetFloat(ZDOVars.s_rudder, out _)) return;
-				// Falling TreeLog / tumbling debris: bypass rate-limit AND Vec3/Quat culls.
+				// Falling TreeLog / birds / tumbling debris: bypass rate-limit AND Vec3/Quat culls.
 				if (MotionCull.IsHotPhysics(__instance, ___m_nview))
 				{
 					forcing = true;
 					MotionCull.Force++;
-					MotionCull.ForceSendHot(___m_nview);
+					if (___m_nview.GetComponent<TreeLog>())
+						MotionCull.ForceSendHot(___m_nview);
 					return;
 				}
 				float rate = Mathf.Max(4f, Configuration.motionCullPhysicsHz.Value);
@@ -255,67 +256,23 @@ namespace Valheim_Serverside.Features
 		{
 			static void Postfix(TreeLog __instance, ZNetView ___m_nview)
 			{
-				if (___m_nview == null || !___m_nview.IsValid()) return;
-				ZDO zdo = ___m_nview.GetZDO();
-				if (zdo == null || !zdo.IsValid() || !zdo.IsOwner()) return;
-				if (zdo.Type != ZDO.ObjectType.Prioritized)
-					zdo.SetType(ZDO.ObjectType.Prioritized);
+				MotionCull.EnsurePrioritized(___m_nview);
 			}
 		}
 
-		[HarmonyPatch(typeof(Character), nameof(Character.CustomFixedUpdate))]
-		public static class Character_MotionCull
+		/// <summary>Birds are Default-type ZSyncTransform objects — promote so relay/TopK never throttle them.</summary>
+		[HarmonyPatch(typeof(RandomFlyingBird), "Awake")]
+		public static class RandomFlyingBird_Prioritize
 		{
-			private static bool freezing;
-			private static bool forcing;
-
-			static void Prefix(Character __instance, ZNetView ___m_nview)
+			static void Postfix(RandomFlyingBird __instance, ZNetView ___m_nview)
 			{
-				freezing = false;
-				forcing = false;
-				if (!MotionCull.Active || ___m_nview == null || !___m_nview.IsValid()) return;
-				if (__instance.IsPlayer()) return;
-				ZDO zdo = ___m_nview.GetZDO();
-				float rate = Mathf.Max(4f, Configuration.motionCullNpcHz.Value);
-				forcing = MotionCull.ShouldUpdate(zdo, 0.5f);
-				freezing = !forcing && !MotionCull.ShouldUpdate(zdo, rate);
-				if (forcing) MotionCull.Force++;
-				if (freezing) MotionCull.Freeze++;
-			}
-
-			static void Postfix()
-			{
-				if (freezing) { freezing = false; MotionCull.Freeze--; }
-				if (forcing) { forcing = false; MotionCull.Force--; }
+				MotionCull.EnsurePrioritized(___m_nview);
 			}
 		}
 
-		[HarmonyPatch(typeof(Character), nameof(Character.UpdateGroundTilt))]
-		public static class Character_UpdateGroundTilt_Cull
-		{
-			static void Prefix()
-			{
-				if (MotionCull.Active) MotionCull.Freeze++;
-			}
-
-			static void Postfix()
-			{
-				if (MotionCull.Active) MotionCull.Freeze--;
-			}
-		}
-
-		[HarmonyPatch(typeof(Character), nameof(Character.SyncVelocity))]
-		public static class Character_SyncVelocity_Cull
-		{
-			static bool Prefix(Rigidbody ___m_body, ref Vector3 ___m_bodyVelocityCached)
-			{
-				if (!MotionCull.Active || MotionCull.IsForcing) return true;
-#pragma warning disable CS0618 // Unity marks velocity obsolete; Valheim still uses it on Character.
-				Vector3 delta = ___m_body.velocity - ___m_bodyVelocityCached;
-#pragma warning restore CS0618
-				return delta.sqrMagnitude > MotionCull.Vec3CullSq;
-			}
-		}
+		// Characters (players + enemies) are intentionally NOT MotionCulled. The previous
+		// Character_MotionCull / UpdateGroundTilt / SyncVelocity hooks froze IncreaseDataRevision
+		// at ~8 Hz and made combat hitchy.
 
 		[HarmonyPatch(typeof(MonoUpdaters), nameof(MonoUpdaters.FixedUpdate))]
 		public static class MonoUpdaters_FixedUpdate_MotionTime
@@ -417,8 +374,8 @@ namespace Valheim_Serverside.Features
 				if (minMs <= 0 || z == null) return false;
 				if (z.Type == ZDO.ObjectType.Prioritized) return false;
 				if (z.GetOwner() == peer.m_peer.m_uid) return false;
-				// Prefab check — no FindInstance required (works the frame a log is spawned).
-				if (MotionCull.IsTreeLogPrefab(z.GetPrefab())) return false;
+				// Prefab check — no FindInstance required (works the frame a log/bird is spawned).
+				if (MotionCull.IsCreaturePhysicsPrefab(z.GetPrefab())) return false;
 				if (MotionCull.IsHotZdo(z)) return false;
 				if (!peer.m_zdos.TryGetValue(z.m_uid, out var info)) return false;
 				return (Time.time - info.m_syncTime) * 1000f < minMs;
@@ -475,6 +432,8 @@ namespace Valheim_Serverside.Features
 			private static float lastDt = 0.01f;
 			private static float nextForceSend;
 			private static readonly Dictionary<int, bool> treeLogPrefabCache = new Dictionary<int, bool>();
+			private static readonly Dictionary<int, bool> birdPrefabCache = new Dictionary<int, bool>();
+			private static readonly Dictionary<int, bool> creaturePhysicsCache = new Dictionary<int, bool>();
 			internal static int Freeze;
 			internal static int Force;
 
@@ -509,6 +468,15 @@ namespace Valheim_Serverside.Features
 				return Mathf.RoundToInt((float)(baseT * rateHz)) != Mathf.RoundToInt((float)(next * rateHz));
 			}
 
+			internal static void EnsurePrioritized(ZNetView view)
+			{
+				if (view == null || !view.IsValid()) return;
+				ZDO zdo = view.GetZDO();
+				if (zdo == null || !zdo.IsValid() || !zdo.IsOwner()) return;
+				if (zdo.Type != ZDO.ObjectType.Prioritized)
+					zdo.SetType(ZDO.ObjectType.Prioritized);
+			}
+
 			internal static bool IsTreeLogPrefab(int prefabHash)
 			{
 				if (prefabHash == 0 || !ZNetScene.instance) return false;
@@ -517,6 +485,26 @@ namespace Valheim_Serverside.Features
 				bool isLog = go && go.GetComponent<TreeLog>() != null;
 				treeLogPrefabCache[prefabHash] = isLog;
 				return isLog;
+			}
+
+			internal static bool IsBirdPrefab(int prefabHash)
+			{
+				if (prefabHash == 0 || !ZNetScene.instance) return false;
+				if (birdPrefabCache.TryGetValue(prefabHash, out bool cached)) return cached;
+				GameObject go = ZNetScene.instance.GetPrefab(prefabHash);
+				bool isBird = go && go.GetComponent<RandomFlyingBird>() != null;
+				birdPrefabCache[prefabHash] = isBird;
+				return isBird;
+			}
+
+			/// <summary>TreeLog + birds — never relay-throttle / never freeze data revisions.</summary>
+			internal static bool IsCreaturePhysicsPrefab(int prefabHash)
+			{
+				if (prefabHash == 0) return false;
+				if (creaturePhysicsCache.TryGetValue(prefabHash, out bool cached)) return cached;
+				bool hot = IsTreeLogPrefab(prefabHash) || IsBirdPrefab(prefabHash);
+				creaturePhysicsCache[prefabHash] = hot;
+				return hot;
 			}
 
 			/// <summary>
@@ -538,8 +526,13 @@ namespace Valheim_Serverside.Features
 			{
 				if (view && view.IsValid())
 				{
+					ZDO zdo = view.GetZDO();
+					int prefab = zdo != null ? zdo.GetPrefab() : 0;
+					// Birds always move via transform — keep full-rate sync while owned/alive.
+					if (view.GetComponent<RandomFlyingBird>() || IsBirdPrefab(prefab))
+						return true;
 					// Any TreeLog with a live non-kinematic body — don't wait on velocity thresholds.
-					if (view.GetComponent<TreeLog>() || IsTreeLogPrefab(view.GetZDO().GetPrefab()))
+					if (view.GetComponent<TreeLog>() || IsTreeLogPrefab(prefab))
 					{
 						Rigidbody body = view.GetComponent<Rigidbody>();
 						if (body && !body.isKinematic && !body.IsSleeping()) return true;
@@ -551,7 +544,7 @@ namespace Valheim_Serverside.Features
 			internal static bool IsHotZdo(ZDO z)
 			{
 				if (z == null) return false;
-				if (IsTreeLogPrefab(z.GetPrefab())) return true;
+				if (IsCreaturePhysicsPrefab(z.GetPrefab())) return true;
 				if (!ZNetScene.instance) return false;
 				ZNetView view = ZNetScene.instance.FindInstance(z);
 				if (!view) return false;

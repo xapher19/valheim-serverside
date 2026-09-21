@@ -208,12 +208,12 @@ namespace PluginConfiguration
 				new ConfigDescription("Backstop: run deferred asset unload after this many minutes even if players are still online.",
 					new AcceptableValueRange<int>(30, 1440)));
 			motionCullEnabled = config.Bind("Performance", "MotionCull", true,
-				"On the dedicated server, drop tiny position/rotation ZDO writes and rate-limit NPC/physics revision spam (LeanNet-style). Ships and players are exempt. Vanilla clients. Needs restart.");
+				"On the dedicated server, drop tiny position/rotation ZDO writes and rate-limit inert physics revision spam (LeanNet-style). Ships, players, enemies/Characters, birds, and tumbling TreeLogs are exempt. Vanilla clients. Needs restart.");
 			motionCullPhysicsHz = config.Bind("Performance", "MotionCullPhysicsHz", 8f,
-				new ConfigDescription("Max network revision rate for physics objects (drops, projectiles). Floor 4.",
+				new ConfigDescription("Max network revision rate for inert physics objects (settled drops). Floor 4. TreeLogs/birds bypass this.",
 					new AcceptableValueRange<float>(4f, 20f)));
 			motionCullNpcHz = config.Bind("Performance", "MotionCullNpcHz", 8f,
-				new ConfigDescription("Max network revision rate for non-player characters. Floor 4.",
+				new ConfigDescription("Unused since 1.11.8 — Characters (players and enemies) are fully exempt from MotionCull.",
 					new AcceptableValueRange<float>(4f, 20f)));
 			motionCullVec3Meters = config.Bind("Performance", "MotionCullVec3Meters", 0.05f,
 				new ConfigDescription("Ignore Vector3 ZDO writes smaller than this (metres). Rotations use a similar threshold.",

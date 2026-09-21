@@ -177,10 +177,14 @@ static class Program
         }
         Check(syncSrc != null, "Sync.cs not found for tree-fall guard rails");
         Check(syncSrc.Contains("TreeLog_Prioritize"), "TreeLog Prioritized promotion missing");
-        Check(syncSrc.Contains("IsTreeLogPrefab"), "TreeLog prefab relay exemption missing");
+        Check(syncSrc.Contains("RandomFlyingBird_Prioritize"), "Bird Prioritized promotion missing");
+        Check(syncSrc.Contains("IsCreaturePhysicsPrefab"), "Creature physics prefab exemption missing");
         Check(syncSrc.Contains("ForceSendHot"), "TreeLog ForceSend while tumbling missing");
-        Check(syncSrc.Contains("IsTreeLogPrefab(__instance.GetPrefab())"), "IncreaseDataRevision must never freeze TreeLog");
+        Check(syncSrc.Contains("IsCreaturePhysicsPrefab(__instance.GetPrefab())"), "IncreaseDataRevision must never freeze TreeLog/birds");
         Check(!syncSrc.Contains("static bool Prefix() => !MotionCull.IsFreezing;"), "Blind IncreaseDataRevision freeze returned");
+        Check(!syncSrc.Contains("class Character_MotionCull"), "Character MotionCull must stay removed (enemies exempt)");
+        Check(!syncSrc.Contains("class Character_SyncVelocity_Cull"), "Character SyncVelocity cull must stay removed");
+        Check(!syncSrc.Contains("class Character_UpdateGroundTilt_Cull"), "Character ground-tilt freeze must stay removed");
 
         Console.WriteLine($"Passed {checks} hardening assertions.");
     }

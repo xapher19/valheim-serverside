@@ -1,3 +1,8 @@
+## 1.11.8 — Enemies and birds full sync
+
+- **Characters** (players and enemies): MotionCull rate-limit, ground-tilt freeze, and velocity cull disabled — combat stays full-rate.
+- **Birds** (`RandomFlyingBird`): promoted to Prioritized; prefab exempt from relay throttle and revision freeze; ZSyncTransform always forced.
+
 ## 1.11.7 — Tree fall sync hardened
 
 - TreeLogs promote to **Prioritized** on Awake (TopK + relay treat them like creatures).
